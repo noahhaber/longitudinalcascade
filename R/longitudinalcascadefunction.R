@@ -18,9 +18,10 @@
 #' @examples
 #' long.cascade()
 long.cascade <- function(events.long,stages.order,groups.order=NA,
-                               death.indicator=NA,retention.indicator=NA,censorship.indicator=NA,
-                               allow.sub.lines=FALSE,allow.skips=FALSE,
-                               x.axis.max=365) {
+                         death.indicator=NA,retention.indicator=NA,censorship.indicator=NA,
+                         allow.sub.lines=FALSE,allow.skips=FALSE,
+                         x.axis.max=365,
+                         nochart=FALSE) {
   # Initialize function
   {
     # Packages
@@ -332,7 +333,7 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
     }
   }
   # Generate chart graphics
-  {
+  if (nochart==FALSE){
     # Generate transition charts
     # Color gradient creator
       color.gradient <- function(original.color,number.divisions,darken=0){
@@ -391,6 +392,9 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             geom_step(data=surv.death.combined,aes(x=surv.time,y=1-surv.surv)) + 
             geom_rect(data=surv.death.combined,aes(xmin=surv.time,xmax=lead(surv.time),ymin=1-surv.surv,ymax=1),alpha=1,fill="indianred1")
         }
+  }
+  else {
+    chart = FALSE
   }
   # Generate between-group statistical tests
   {
