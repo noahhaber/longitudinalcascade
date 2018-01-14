@@ -374,7 +374,7 @@ long.cascade <- function(df,stages.order,groups.order=NA,
             legend.title=element_blank(),
             axis.text = element_text(colour="black",size=10),
             strip.text = element_text(size = 12,hjust=0),
-            panel.margin = unit(1, "lines")
+            panel.spacing = unit(2, "lines")
           ) +
           scale_x_continuous(limits = (x.axis.range/365),expand = c(0, 0)) +
           scale_y_continuous(limits = c(0, 1),expand = c(0, 0),labels=percent) +
