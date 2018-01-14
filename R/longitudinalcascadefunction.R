@@ -39,6 +39,7 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
     # Generate a single "group" if group is unchanged
       if (anyNA(groups.order)) {
         events.long$group <- "All observations"
+        groups.order <- c("All observations")
       }
       else {}
   }
