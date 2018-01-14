@@ -55,10 +55,10 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
         events.long <- events.long[order(events.long$stage.number),]
         events.long$stage.index <- NULL
       # Generate separated wide list of stage events
-        events_wide <- events.long %>%
+        events.wide <- events.long %>%
           spread(stage.number, date)
       # Replace names with "date"
-        names(events_wide) <- gsub("stage.", "date.stage.",names(events_wide))
+        names(events.wide) <- gsub("stage.", "date.stage.",names(events.wide))
     }
     # Fix ordering, so that completion of a later stage indicates completion of earlier stage, and mark where this happens
     {
@@ -70,53 +70,53 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
         latter.date.origin.index.name <- paste("stage.",stage.index+1,".origin.index",sep="")
         
         # Determine whether or not current stage is eligible for change
-          events_wide$temp_flag <- ifelse(events_wide[[latter.date.name]] < events_wide[[former.date.name]] | 
-                                          is.na(events_wide[[former.date.name]])==TRUE,1,0)
-          events_wide$temp_flag <- ifelse(is.na(events_wide$temp_flag)==TRUE,0,events_wide$temp_flag)
+          events.wide$temp_flag <- ifelse(events.wide[[latter.date.name]] < events.wide[[former.date.name]] | 
+                                          is.na(events.wide[[former.date.name]])==TRUE,1,0)
+          events.wide$temp_flag <- ifelse(is.na(events.wide$temp_flag)==TRUE,0,events.wide$temp_flag)
         # Check if this is the last event (determines whether there is an available following stage index)
           if (stage.index==(length(stages.order)-1)){
             # Generate on origin flag index, which = last stage if there is a change, and the current stage if there is none
-            events_wide[[former.date.origin.index.name]] <- ifelse(
-              events_wide$temp_flag == 1,
+            events.wide[[former.date.origin.index.name]] <- ifelse(
+              events.wide$temp_flag == 1,
               stage.index + 1, stage.index
             )
-            events_wide[[former.date.origin.index.name]] <- ifelse(
-              is.na(events_wide[[former.date.name]])==TRUE & is.na(events_wide[[latter.date.name]])==TRUE,
-              NA,events_wide[[former.date.origin.index.name]])
+            events.wide[[former.date.origin.index.name]] <- ifelse(
+              is.na(events.wide[[former.date.name]])==TRUE & is.na(events.wide[[latter.date.name]])==TRUE,
+              NA,events.wide[[former.date.origin.index.name]])
           } else {
           # Generate on origin flag index, which = the corresponding flag for the next stage if there is a change, and the current stage if there is none
-            events_wide[[former.date.origin.index.name]] <- ifelse(
-              events_wide$temp_flag == 1 & !is.na(events_wide[[latter.date.origin.index.name]]),
-              events_wide[[latter.date.origin.index.name]],NA
+            events.wide[[former.date.origin.index.name]] <- ifelse(
+              events.wide$temp_flag == 1 & !is.na(events.wide[[latter.date.origin.index.name]]),
+              events.wide[[latter.date.origin.index.name]],NA
             )
-            events_wide[[former.date.origin.index.name]] <- ifelse(
-              events_wide$temp_flag == 0,
-              stage.index,events_wide[[former.date.origin.index.name]]
+            events.wide[[former.date.origin.index.name]] <- ifelse(
+              events.wide$temp_flag == 0,
+              stage.index,events.wide[[former.date.origin.index.name]]
             )
         }
         # Replace value of date if a change is made
-          events_wide[[paste("date.stage.",stage.index,sep="")]] <- ifelse(
-            events_wide[[paste("stage.",stage.index,".origin.index",sep="")]] == stage.index,
-            events_wide[[paste("date.stage.",stage.index,sep="")]],events_wide[[paste("date.stage.",stage.index +1,sep="")]]
+          events.wide[[paste("date.stage.",stage.index,sep="")]] <- ifelse(
+            events.wide[[paste("stage.",stage.index,".origin.index",sep="")]] == stage.index,
+            events.wide[[paste("date.stage.",stage.index,sep="")]],events.wide[[paste("date.stage.",stage.index +1,sep="")]]
           )
-          events_wide[[paste("date.stage.",stage.index,sep="")]] <- as.Date.numeric(events_wide[[paste("date.stage.",stage.index,sep="")]])
+          events.wide[[paste("date.stage.",stage.index,sep="")]] <- as.Date.numeric(events.wide[[paste("date.stage.",stage.index,sep="")]])
       }
-      events_wide$temp_flag <- NULL
+      events.wide$temp_flag <- NULL
     }
     # Fill in missing events backward through the cascade, so that subsequent events mark previous events if otherwise missing
     {
       for (i in seq(length(stages.order)-1,1,-1)){
-        events_wide[[paste("date.stage.",i,sep="")]] <- ifelse(is.na(events_wide[[paste("date.stage.",i,sep="")]])==TRUE & is.na(events_wide[[paste("date.stage.",(i+1),sep="")]])==FALSE,
-                                                               events_wide[[paste("date.stage.",(i+1),sep="")]],
-                                                               events_wide[[paste("date.stage.",i,sep="")]])
+        events.wide[[paste("date.stage.",i,sep="")]] <- ifelse(is.na(events.wide[[paste("date.stage.",i,sep="")]])==TRUE & is.na(events.wide[[paste("date.stage.",(i+1),sep="")]])==FALSE,
+                                                               events.wide[[paste("date.stage.",(i+1),sep="")]],
+                                                               events.wide[[paste("date.stage.",i,sep="")]])
       }
     }
     # Add a dummy censorship date for any missing dates which is well after the maximum timeline
     {
       for (i in 1:(length(stages.order))){
-        events_wide[[paste("date.stage.",i,sep="")]] <- ifelse(is.na(events_wide[[paste("date.stage.",i,sep="")]]),
-                                                               events_wide$date.stage.1+length(stages.order)*(x.axis.max+1),
-                                                               events_wide[[paste("date.stage.",i,sep="")]])
+        events.wide[[paste("date.stage.",i,sep="")]] <- ifelse(is.na(events.wide[[paste("date.stage.",i,sep="")]]),
+                                                               events.wide$date.stage.1+length(stages.order)*(x.axis.max+1),
+                                                               events.wide[[paste("date.stage.",i,sep="")]])
       }
     }
     # Determine dates of death and censorship, and add to dataset
@@ -126,36 +126,36 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
           events.death <- subset(events.long.orig,stage==death.indicator)
           events.death <- events.death[c("ID","date")]
           colnames(events.death) <- c("ID","date.death")
-          events_wide <- merge(events_wide,events.death,by="ID",all.x = TRUE)
+          events.wide <- merge(events.wide,events.death,by="ID",all.x = TRUE)
         }
       # Merge in censorship events (if any)
         if (is.na(censorship.indicator)==FALSE){
           events.censorship <- subset(events.long.orig,stage==censorship.indicator)
           events.censorship <- events.censorship[c("ID","date")]
           colnames(events.censorship) <- c("ID","date.censorship")
-          events_wide <- merge(events_wide,events.censorship,by="ID",all.x = TRUE)
+          events.wide <- merge(events.wide,events.censorship,by="ID",all.x = TRUE)
         }
       # Assume that if date of death exists and occurs after censorship event, censorship is false and replace with NA
         if ((is.na(censorship.indicator)==FALSE) & (is.na(death.indicator)==FALSE)){
-          events_wide$date.censorship <- ifelse((events_wide$date.censorship < events_wide$date.death) & (is.na(events_wide$date.death)==FALSE) & (is.na(events_wide$date.censorship)==FALSE),
-                                                NA,events_wide$date.censorship)
-          events_wide$date.censorship <- as.Date.numeric(events_wide$date.censorship)
+          events.wide$date.censorship <- ifelse((events.wide$date.censorship < events.wide$date.death) & (is.na(events.wide$date.death)==FALSE) & (is.na(events.wide$date.censorship)==FALSE),
+                                                NA,events.wide$date.censorship)
+          events.wide$date.censorship <- as.Date.numeric(events.wide$date.censorship)
         }
       # Make dummy date for missing data a censorship data
         for (i in 1:(length(stages.order))){
-          events_wide$date.censorship <- ifelse(events_wide[[paste("date.stage.",i,sep="")]]==events_wide$date.stage.1+length(stages.order)*(x.axis.max+1),
-                                                events_wide$date.stage.1+length(stages.order)*(x.axis.max+1),
-                                                events_wide$date.censorship)
+          events.wide$date.censorship <- ifelse(events.wide[[paste("date.stage.",i,sep="")]]==events.wide$date.stage.1+length(stages.order)*(x.axis.max+1),
+                                                events.wide$date.stage.1+length(stages.order)*(x.axis.max+1),
+                                                events.wide$date.censorship)
         }
       # Generate time from each stage to death and censorship
         for (i in 1:(length(stages.order)-1)){
           if (is.na(death.indicator)==FALSE){
-            events_wide[[paste("time.stage.",i,".to.death",sep="")]] <- 
-              events_wide[["date.death"]] - events_wide[[paste("date.stage.",i,sep="")]]
+            events.wide[[paste("time.stage.",i,".to.death",sep="")]] <- 
+              events.wide[["date.death"]] - events.wide[[paste("date.stage.",i,sep="")]]
           }
           if (is.na(censorship.indicator)==FALSE){
-            events_wide[[paste("time.stage.",i,".to.censorship",sep="")]] <- 
-              events_wide[["date.censorship"]] - events_wide[[paste("date.stage.",i,sep="")]]
+            events.wide[[paste("time.stage.",i,".to.censorship",sep="")]] <- 
+              events.wide[["date.censorship"]] - events.wide[[paste("date.stage.",i,sep="")]]
           }
         }
     }
@@ -164,58 +164,58 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
       for (i in 1:(length(stages.order)-1)){
         for (j in (i+1):(length(stages.order))){
           # Generate time to actual stage event if event occurs
-            events_wide[[paste("time.stage.",i,".to.",j,sep="")]] <-
-              events_wide[[paste("date.stage.",j,sep="")]] - events_wide[[paste("date.stage.",i,sep="")]]
+            events.wide[[paste("time.stage.",i,".to.",j,sep="")]] <-
+              events.wide[[paste("date.stage.",j,sep="")]] - events.wide[[paste("date.stage.",i,sep="")]]
           # Replace with time to censorship if event never happens and generate a censorship indicator flag
             if (is.na(censorship.indicator)==FALSE){
-              events_wide[[paste("censorship.stage.",i,".to.",j,sep="")]] <- ifelse(
-                is.na(events_wide[[paste("time.stage.",i,".to.",j,sep="")]])==TRUE & is.na(events_wide[[paste("time.stage.",i,".to.censorship",sep="")]])==FALSE,
+              events.wide[[paste("censorship.stage.",i,".to.",j,sep="")]] <- ifelse(
+                is.na(events.wide[[paste("time.stage.",i,".to.",j,sep="")]])==TRUE & is.na(events.wide[[paste("time.stage.",i,".to.censorship",sep="")]])==FALSE,
                 1,0
               )
-              events_wide[[paste("time.stage.",i,".to.",j,sep="")]] <- ifelse(
-                is.na(events_wide[[paste("time.stage.",i,".to.",j,sep="")]])==TRUE,
-                events_wide[[paste("time.stage.",i,".to.censorship",sep="")]],events_wide[[paste("time.stage.",i,".to.",j,sep="")]]
+              events.wide[[paste("time.stage.",i,".to.",j,sep="")]] <- ifelse(
+                is.na(events.wide[[paste("time.stage.",i,".to.",j,sep="")]])==TRUE,
+                events.wide[[paste("time.stage.",i,".to.censorship",sep="")]],events.wide[[paste("time.stage.",i,".to.",j,sep="")]]
               )
             } else{
-              events_wide[[paste("censorship.stage.",i,".to.",j,sep="")]] <- 0
+              events.wide[[paste("censorship.stage.",i,".to.",j,sep="")]] <- 0
             }
-            events_wide[[paste("censorship.stage.",i,".to.",j,sep="")]] <- ifelse(
-              is.na(events_wide[[paste("time.stage.",i,".to.",j,sep="")]])==TRUE,
-              NA,events_wide[[paste("censorship.stage.",i,".to.",j,sep="")]]
+            events.wide[[paste("censorship.stage.",i,".to.",j,sep="")]] <- ifelse(
+              is.na(events.wide[[paste("time.stage.",i,".to.",j,sep="")]])==TRUE,
+              NA,events.wide[[paste("censorship.stage.",i,".to.",j,sep="")]]
             )
           # Generate transition-specific mortality (i.e. mortality occuring only between each stage)
             if (is.na(death.indicator)==FALSE){
-              events_wide[[paste("time.death.stage.",i,".to.",j,sep="")]] <- ifelse(
-                (is.na(events_wide[[paste("time.stage.",i,".to.death",sep="")]]) == FALSE) & (is.na(events_wide[[paste("time.stage.",i,".to.",j,sep="")]])==TRUE),
-                events_wide[[paste("time.stage.",i,".to.death",sep="")]],NA
+              events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]] <- ifelse(
+                (is.na(events.wide[[paste("time.stage.",i,".to.death",sep="")]]) == FALSE) & (is.na(events.wide[[paste("time.stage.",i,".to.",j,sep="")]])==TRUE),
+                events.wide[[paste("time.stage.",i,".to.death",sep="")]],NA
               )
-              events_wide[[paste("time.death.stage.",i,".to.",j,sep="")]] <- ifelse(
-                (is.na(events_wide[[paste("date.stage.",i,sep="")]]) == FALSE) & (is.na(events_wide[[paste("time.death.stage.",i,".to.",j,sep="")]])==TRUE),
-                x.axis.max,events_wide[[paste("time.death.stage.",i,".to.",j,sep="")]]
+              events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]] <- ifelse(
+                (is.na(events.wide[[paste("date.stage.",i,sep="")]]) == FALSE) & (is.na(events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]])==TRUE),
+                x.axis.max,events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]]
               )
-              events_wide[[paste("time.death.stage.",i,".to.",j,sep="")]] <- ifelse(
-                events_wide[[paste("time.death.stage.",i,".to.",j,sep="")]] > x.axis.max,
-                x.axis.max,events_wide[[paste("time.death.stage.",i,".to.",j,sep="")]]
+              events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]] <- ifelse(
+                events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]] > x.axis.max,
+                x.axis.max,events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]]
               )
-              events_wide[[paste("censorship.death.stage.",i,".to.",j,sep="")]] <- ifelse(
-                events_wide[[paste("time.death.stage.",i,".to.",j,sep="")]] >= x.axis.max,
+              events.wide[[paste("censorship.death.stage.",i,".to.",j,sep="")]] <- ifelse(
+                events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]] >= x.axis.max,
                 1,0
               )
             }
           # Replace transition times where initializing event occurs but finishing does not, with censorship after x axis limit
-            events_wide[[paste("time.stage.",i,".to.",j,sep="")]] <- ifelse(
-              is.na(events_wide[[paste("time.stage.",i,".to.",j,sep="")]]) == TRUE & is.na(events_wide[[paste("date.stage.",i,sep="")]]) == FALSE,
-              x.axis.max, events_wide[[paste("time.stage.",i,".to.",j,sep="")]]
+            events.wide[[paste("time.stage.",i,".to.",j,sep="")]] <- ifelse(
+              is.na(events.wide[[paste("time.stage.",i,".to.",j,sep="")]]) == TRUE & is.na(events.wide[[paste("date.stage.",i,sep="")]]) == FALSE,
+              x.axis.max, events.wide[[paste("time.stage.",i,".to.",j,sep="")]]
             )
           # Replace transition times greater than axis limit, with censorship after x axis limit
-            events_wide[[paste("time.stage.",i,".to.",j,sep="")]] <- ifelse(
-              events_wide[[paste("time.stage.",i,".to.",j,sep="")]] > x.axis.max,
-              x.axis.max, events_wide[[paste("time.stage.",i,".to.",j,sep="")]]
+            events.wide[[paste("time.stage.",i,".to.",j,sep="")]] <- ifelse(
+              events.wide[[paste("time.stage.",i,".to.",j,sep="")]] > x.axis.max,
+              x.axis.max, events.wide[[paste("time.stage.",i,".to.",j,sep="")]]
             )
           # Change to censorship event if censored after axis limit
-            events_wide[[paste("censorship.stage.",i,".to.",j,sep="")]] <- ifelse(
-              events_wide[[paste("time.stage.",i,".to.",j,sep="")]] > x.axis.max,
-              1, events_wide[[paste("censorship.stage.",i,".to.",j,sep="")]]
+            events.wide[[paste("censorship.stage.",i,".to.",j,sep="")]] <- ifelse(
+              events.wide[[paste("time.stage.",i,".to.",j,sep="")]] > x.axis.max,
+              1, events.wide[[paste("censorship.stage.",i,".to.",j,sep="")]]
             )
         }
       }
@@ -229,21 +229,21 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
           
           # Select data
             if (allow.skips==TRUE){
-              events_wide$selection <- is.na(events_wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]])==FALSE &
-                events_wide$group == groups.order[group.index]
+              events.wide$selection <- is.na(events.wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]])==FALSE &
+                events.wide$group == groups.order[group.index]
             } else {
-              events_wide$selection <- is.na(events_wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]])==FALSE &
-                events_wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]]!=0 &
-                events_wide$group == groups.order[group.index]
+              events.wide$selection <- is.na(events.wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]])==FALSE &
+                events.wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]]!=0 &
+                events.wide$group == groups.order[group.index]
             }
           # Remove those who are disqualified from the "0+1" stage events from "0+n" events
-            events_wide$selection <- ifelse(events_wide[[paste("time.stage.",start.stage.index,".to.",(start.stage.index+1),sep="")]]==0,
+            events.wide$selection <- ifelse(events.wide[[paste("time.stage.",start.stage.index,".to.",(start.stage.index+1),sep="")]]==0,
                                             FALSE,
-                                            events_wide$selection)
+                                            events.wide$selection)
           
           # Generate list of events
-            chart.time <- as.integer(events_wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events_wide$selection==TRUE])
-            chart.event <- as.integer(!events_wide[[paste("censorship.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events_wide$selection==TRUE])
+            chart.time <- as.integer(events.wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events.wide$selection==TRUE])
+            chart.event <- as.integer(!events.wide[[paste("censorship.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events.wide$selection==TRUE])
           # Add dummy event to allow graphical continuation of data past last known event
             chart.time <- c(chart.time, x.axis.max)
             chart.event <- c(chart.event,1)
@@ -292,11 +292,11 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             gen.death.data <- function(start.stage.index,end.stage.index,group.index){
             
               # Select data
-                events_wide$selection <- is.na(events_wide[[paste("time.death.stage.",start.stage.index,".to.",end.stage.index,sep="")]])==FALSE &
-                  events_wide$group == groups.order[group.index]
+                events.wide$selection <- is.na(events.wide[[paste("time.death.stage.",start.stage.index,".to.",end.stage.index,sep="")]])==FALSE &
+                  events.wide$group == groups.order[group.index]
               # Generate list of events
-                chart.time <- as.integer(events_wide[[paste("time.death.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events_wide$selection==TRUE])
-                chart.event <- as.integer(!events_wide[[paste("censorship.death.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events_wide$selection==TRUE])
+                chart.time <- as.integer(events.wide[[paste("time.death.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events.wide$selection==TRUE])
+                chart.event <- as.integer(!events.wide[[paste("censorship.death.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events.wide$selection==TRUE])
               # Add dummy event to allow graphical continuation of data past last known event
                 chart.time <- c(chart.time, (x.axis.max+1))
                 chart.event <- c(chart.event,1)
@@ -397,9 +397,9 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
     if (length(groups.order)>1){
       # Generate tests function
         generate.surv.diff <- function(init.stage){
-          chart.time <- as.integer(events_wide[[paste("time.stage.",(init.stage),".to.",(init.stage+1),sep="")]])
-          chart.event <- as.integer(!events_wide[[paste("censorship.stage.",(init.stage),".to.",(init.stage+1),sep="")]])
-          groups <- ordered(events_wide$group,labels=groups.order,levels=groups.order)
+          chart.time <- as.integer(events.wide[[paste("time.stage.",(init.stage),".to.",(init.stage+1),sep="")]])
+          chart.event <- as.integer(!events.wide[[paste("censorship.stage.",(init.stage),".to.",(init.stage+1),sep="")]])
+          groups <- ordered(events.wide$group,labels=groups.order,levels=groups.order)
           test.name <- paste0("curve.het.stage.",(init.stage),"to",(init.stage+1))
           surv.diff <- list(survdiff(Surv(time = chart.time, event = chart.event) ~ groups))
           names(surv.diff)[1] <- test.name
@@ -415,9 +415,9 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
   # Prepare export data
   {
     if (length(groups.order)>1){
-      output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events_wide" = events_wide,"surv.diffs" = surv.diffs.combined)
+      output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.wide" = events.wide,"surv.diffs" = surv.diffs.combined)
     } else {
-      output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events_wide" = events_wide)
+      output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.wide" = events.wide)
     }
     
   }
