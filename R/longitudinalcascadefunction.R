@@ -36,8 +36,8 @@ long.cascade <- function(df,stages.order,groups.order=c("All observations"),
     # Settings values
       events_long.orig <- df
       x.axis.range <- c(0,x.axis.max)
-    # Generate a single "group" if group is missing
-      df$group <- c("All observations")
+    # Generate a single "group" if group is unchanged
+      if (groups.order == c("All observations")) {events_long.orig$group <- c("All observations")}
   }
   # Data manipulation
   {
@@ -412,9 +412,9 @@ long.cascade <- function(df,stages.order,groups.order=c("All observations"),
   # Prepare export data
   {
     if (length(groups.order)>1){
-      output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.dataset.wide" = events_wide,"surv.diffs" = surv.diffs.combined)
+      output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events_wide" = events_wide,"surv.diffs" = surv.diffs.combined)
     } else {
-      output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.dataset.wide" = events_wide)
+      output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events_wide" = events_wide)
     }
     
   }
