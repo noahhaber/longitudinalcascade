@@ -282,7 +282,6 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
                                                     labels = stages.order[2:(length(stages.order))])
           surv.combined$group.factor <- ordered(surv.combined$group.index,levels=c(1:(length(groups.order))),
                                                 labels = groups.order[1:(length(groups.order))])
-          group.factor.out.temp <- surv.combined$group.factor
         # Revise data based on options
           if (allow.sub.lines == FALSE) {
             surv.combined <- subset(surv.combined,surv.combined$start.stage.index==(surv.combined$end.stage.index)-1)
@@ -418,11 +417,9 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
   {
     if (length(groups.order)>1){
       output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.long" = events.long,"events.wide" = events.wide,
-                        "group.factor.out.temp" = group.factor.out.temp,
                         "surv.diffs" = surv.diffs.combined)
     } else {
-      output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.long" = events.long,"events.wide" = events.wide,
-                        "group.factor.out.temp" = group.factor.out.temp)
+      output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.long" = events.long,"events.wide" = events.wide)
     }
     
   }
