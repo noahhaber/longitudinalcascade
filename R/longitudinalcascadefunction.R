@@ -413,6 +413,11 @@ long.cascade <- function(df,stages.order,groups.order=NA,
   }
   # Prepare export data
   {
-    output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.dataset.wide" = events_wide,"surv.diffs" = surv.diffs.combined)
+    if (!anyNA(groups.order)){
+      output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.dataset.wide" = events_wide,"surv.diffs" = surv.diffs.combined)
+    } else {
+      output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.dataset.wide" = events_wide)
+    }
+    
   }
 }
