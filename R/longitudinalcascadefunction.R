@@ -1,17 +1,6 @@
-#' Longitudinal cascade generation function
-#'
 #' This package generates a longitudinal casade, including a graphical representation. This takes a long-formatted list of stage-by-stage events and transforms it into a longitudinal cascade, correcting the orders of events.
+#' @title Longitudinal cascade generator
 #' @keywords cascade longitudinal survival
-#' 
-#' @import survival
-#' @import ggplot2
-#' @import tidyr
-#' @import dplyr
-#' @import zoo
-#' @import scales
-#' 
-#' long.cascade()
-#' This is the main function for the package. Parameters for this function are described below.
 #' @param df (required) The main dataframe input parameter. The data frame needs at least the following fields:
 #' "ID": (required) Either a numerical or string-based individual identifier, indicating every person in the dataset
 #' "date": (required) Date-formatted date son which the event / stage occurred
@@ -19,25 +8,31 @@
 #' "group": (optional) Strings indicating any relevent groups of data.
 #' @param stages.order (required) stages.order is the parameter which defines the events to be considered in the main cascade and their order. This is a vector of strings matching items in the "Stage" column of the main data frame, e.g. c("Stage 1","Stage 2","Stage 3"). 
 #' @param groups.order (optional) This is a vector of groups, matching the "group" column of the main data frame
-
-
-# Initialize
-{
-  library(survival)
-  #library(survsim)
-  library(ggplot2)
-  library(tidyr)
-  library(dplyr)
-  library(zoo)
-  library(scales)
-}
-
+#' @import survival
+#' @import ggplot2
+#' @import tidyr
+#' @import dplyr
+#' @import zoo
+#' @import scales
+#' @export
+#' @examples
+#' long.cascade()
 long.cascade <- function(df,stages.order,groups.order=NA,
                                death.indicator=NA,retention.indicator=NA,censorship.indicator=NA,
                                allow.sub.lines=FALSE,allow.skips=FALSE,
                                x.axis.max=365) {
   # Initialize function
   {
+    # Packages
+    {
+      library(survival)
+      #library(survsim)
+      library(ggplot2)
+      library(tidyr)
+      library(dplyr)
+      library(zoo)
+      library(scales)
+    }
     # Settings values
       events_long.orig <- df
       x.axis.range <- c(0,x.axis.max)
