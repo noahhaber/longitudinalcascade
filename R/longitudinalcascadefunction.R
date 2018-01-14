@@ -20,7 +20,7 @@
 long.cascade <- function(df,stages.order,groups.order=NA,
                                death.indicator=NA,retention.indicator=NA,censorship.indicator=NA,
                                allow.sub.lines=FALSE,allow.skips=FALSE,
-                               x.axis.max=365) {
+                               x.axis.max) {
   # Initialize function
   {
     # Packages
