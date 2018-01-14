@@ -17,7 +17,7 @@
 #' @export
 #' @examples
 #' long.cascade()
-long.cascade <- function(df,stages.order,groups.order=c("All observations"),
+long.cascade <- function(events.long,stages.order,groups.order=NA,
                                death.indicator=NA,retention.indicator=NA,censorship.indicator=NA,
                                allow.sub.lines=FALSE,allow.skips=FALSE,
                                x.axis.max=365) {
@@ -34,10 +34,13 @@ long.cascade <- function(df,stages.order,groups.order=c("All observations"),
       library(scales)
     }
     # Settings values
-      events_long.orig <- df
+      event.long.orig <- event.long
       x.axis.range <- c(0,x.axis.max)
     # Generate a single "group" if group is unchanged
-      if (groups.order == c("All observations")) {events_long.orig$group <- c("All observations")}
+      if (anyNA(groups.order)) {
+        event.long$group <- "All observations"
+      }
+      else {}
   }
   # Data manipulation
   {
@@ -47,12 +50,12 @@ long.cascade <- function(df,stages.order,groups.order=c("All observations"),
         stages <- as.data.frame(matrix(c(stages.order,paste(rep("stage"),as.character(seq(1:length(stages.order))),sep="."),1:length(stages.order)),ncol=3),stringsAsFactors=FALSE)
         colnames(stages) <- c("stage","stage.number","stage.index")
       # Replace stages with an index for stages
-        events_long <- merge(events_long,stages,by="stage")
-        events_long <- subset( events_long, select = -stage )
-        events_long <- events_long[order(events_long$stage.number),]
-        events_long$stage.index <- NULL
+        event.long <- merge(event.long,stages,by="stage")
+        event.long <- subset( event.long, select = -stage )
+        event.long <- event.long[order(event.long$stage.number),]
+        event.long$stage.index <- NULL
       # Generate separated wide list of stage events
-        events_wide <- events_long %>%
+        events_wide <- event.long %>%
           spread(stage.number, date)
       # Replace names with "date"
         names(events_wide) <- gsub("stage.", "date.stage.",names(events_wide))
@@ -120,14 +123,14 @@ long.cascade <- function(df,stages.order,groups.order=c("All observations"),
     {
       # Merge in death events (if any)
         if (is.na(death.indicator)==FALSE){
-          events.death <- subset(events_long.orig,stage==death.indicator)
+          events.death <- subset(event.long.orig,stage==death.indicator)
           events.death <- events.death[c("ID","date")]
           colnames(events.death) <- c("ID","date.death")
           events_wide <- merge(events_wide,events.death,by="ID",all.x = TRUE)
         }
       # Merge in censorship events (if any)
         if (is.na(censorship.indicator)==FALSE){
-          events.censorship <- subset(events_long.orig,stage==censorship.indicator)
+          events.censorship <- subset(event.long.orig,stage==censorship.indicator)
           events.censorship <- events.censorship[c("ID","date")]
           colnames(events.censorship) <- c("ID","date.censorship")
           events_wide <- merge(events_wide,events.censorship,by="ID",all.x = TRUE)
