@@ -255,7 +255,10 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             chart.surv <- survfit(Surv(time = chart.time, event = chart.event) ~ 1)
             surv.time <- chart.surv$time
             surv.surv <- 1-chart.surv$surv
-            surv.data <- data.frame(surv.time,surv.surv)
+            surv.surv.UB <- 1-chart.surv$lower
+            surv.surv.LB <- 1-chart.surv$upper
+            surv.n <- chart.surv$n
+            surv.data <- data.frame(surv.time,surv.surv,surv.surv.UB,surv.surv.LB,surv.n)
             surv.data$start.stage.index <- start.stage.index
             surv.data$end.stage.index <- end.stage.index
             surv.data$group.index <- group.index
