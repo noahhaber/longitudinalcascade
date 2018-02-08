@@ -4,20 +4,37 @@
 \alias{long.cascade}
 \title{Longitudinal cascade generator}
 \usage{
-long.cascade(df, stages.order, groups.order = NA, death.indicator = NA,
-  retention.indicator = NA, censorship.indicator = NA,
-  allow.sub.lines = FALSE, allow.skips = FALSE, x.axis.max = 365)
+long.cascade(events.long, stages.order, groups.order = NA,
+  death.indicator = NA, censorship.indicator = NA,
+  interstage.event.indicator = NA, allow.sub.lines = FALSE,
+  allow.skips = FALSE, x.axis.max = 365, nochart = FALSE)
 }
 \arguments{
-\item{df}{(required) The main dataframe input parameter. The data frame needs at least the following fields:
-"ID": (required) Either a numerical or string-based individual identifier, indicating every person in the dataset
-"date": (required) Date-formatted date son which the event / stage occurred
-"stage": (required) String indicating the stage achieved by the individual on the specified date. Stages must match the string in the stages.order parameter. Additonal events may be included in the "stage" category, including death, loss to follow up, and interstage events defined in the other parameters.
-"group": (optional) Strings indicating any relevent groups of data.}
-
 \item{stages.order}{(required) stages.order is the parameter which defines the events to be considered in the main cascade and their order. This is a vector of strings matching items in the "Stage" column of the main data frame, e.g. c("Stage 1","Stage 2","Stage 3").}
 
-\item{groups.order}{(optional) This is a vector of groups, matching the "group" column of the main data frame}
+\item{groups.order}{(optional) This is a vector of groups, matching the "group" column of the main data frame. If left blank, no group comparisons will be performed. For the chart, each group will have its own row.}
+
+\item{death.indicator}{(optional) This parameter is the string which indicates a death event in the dataset. If specified, between-stage mortality will be estimated and shown as a KM curve on the top of the chart(s). If left blank, death events will not be estimated.}
+
+\item{censorship.indicator}{(optional) This parameter is the string which indicates a right-censorship event. Most commonly, this will indicate permanent loss to follow up and/or end of data collection.}
+
+\item{interstage.event.indicator}{(optional) (To be implemented) This is the string pertaining to an interstage event, such as clinic visits, whichc do not trigger stage completion. The cumulative number of these are shown as striations on the charts above the main event curve, corresponding to the proportion of individuals who have had X number of interstage events from the time of stage start to end, who have not yet transitioned into the next stage nor died.}
+
+\item{allow.sub.lines}{Sub-lines indicate subsequent transitions across the cascade. If TRUE, the main chart will show transitions to all possible subsequent events. For example, if there are 4 stages (1-4), the leftmost chart will show each transition from 1-2, 1-3, and 1-4, while the next chart will show 2-3 and 2-4, and the last chart will show only 3-4. If FALSE, the charts will only show transition to the subsequent stage.}
+
+\item{allow.skips}{(To be replaced with additional options) This option shows "skips" across the cascade in each chart, as indicated by the y intercept. If FALSE, each stage will start only with people who have not moved on to a subsequent stage, i.e. the y intercept will always be 0. If TRUE, an individual can enter into a stage even if they have "skipped" it. For example, an individual may go straight from stage 1 to stage 3, skipping 2. If this indicator is FALSE, the stage transition chart from 2-3 will not contain this individual in the denomenator. If TRUE, this individual will be counted in the denomenator for this transition, but will be counted as having transitioned into stage 3 immediately upon entering stage 2.}
+
+\item{x.axis.max}{This option shows the maximum range of the x axis in days. Defaults to 365 days (1 year).}
+
+\item{nochart}{Setting this to TRUE prevents the function from generating the main chart.}
+
+\item{df}{(required) The main dataframe input parameter. The data frame needs at least the following fields:
+"ID": (required) A string-based individual identifier, indicating every person in the dataset.
+"date": (required) Date-formatted date on which the event / stage occurred
+"stage": (required) String indicating the stage achieved by the individual on the specified date. Stages must match the string in the stages.order parameter. Additonal events may be included in the "stage" category, including death, loss to follow up, and interstage events defined in the other parameters.
+"group": (optional) String indicating any relevent groups of data.}
+
+\item{interstage.status.indicator}{(optional) (To be implemented) This is an altnernative to the interstage.event.indicator, where the user may define their own status indicator.}
 }
 \description{
 This package generates a longitudinal casade, including a graphical representation. This takes a long-formatted list of stage-by-stage events and transforms it into a longitudinal cascade, correcting the orders of events.
