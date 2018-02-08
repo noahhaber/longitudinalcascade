@@ -25,9 +25,25 @@
 #' @export
 #' @examples
 #' # Pull in data from example simulated dataset
-#' library(RCurl)
-#' load(textConnection(getURL("https://github.com/noahhaber/longitudinalcascade/blob/master/simulated_data.rdata")))
-
+#' library(longitudinalcascade)
+#' data(simulated_data)
+#' 
+#' # Set up options
+#' stages.order <- c("First tested positive","Knows status","Linked to care","Eligible for ART","Initiated ART","Therapeutic response")
+#' groups.order <- c("Group 1","Group 2","Group 3")
+#' death.indicator <- "Death"
+#' retention.indicator <- "Clinic visit"
+#' censorship.indicator <- "LTFU"
+#' allow.sub.lines <- TRUE
+#' allow.skips <- TRUE
+#' 
+#' # Create cascade object
+#' long.cascade.sim <- long.cascade(events_long,stages.order=stages.order,groups.order=groups.order,
+#' death.indicator=death.indicator,retention.indicator=retention.indicator,censorship.indicator=censorship.indicator,
+#' allow.sub.lines=allow.sub.lines,allow.skips=allow.skips)
+#' 
+#' # Output chart
+#' long.cascade.sim$chart
 
 long.cascade <- function(events.long,stages.order,groups.order=NA,
                          death.indicator=NA,censorship.indicator=NA,interstage.event.indicator=NA,
