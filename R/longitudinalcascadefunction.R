@@ -24,7 +24,8 @@
 #' @import scales
 #' @export
 #' @examples
-#' long.cascade()
+#' # Pull in data
+#' 
 long.cascade <- function(events.long,stages.order,groups.order=NA,
                          death.indicator=NA,censorship.indicator=NA,interstage.event.indicator=NA,
                          allow.sub.lines=FALSE,allow.skips=FALSE,
