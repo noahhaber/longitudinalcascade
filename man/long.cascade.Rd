@@ -10,6 +10,12 @@ long.cascade(events.long, stages.order, groups.order = NA,
   allow.skips = FALSE, x.axis.max = 365, nochart = FALSE)
 }
 \arguments{
+\item{events.long}{(required) The main dataframe input parameter. The data frame needs at least the following fields:
+"ID": (required) A string-based individual identifier, indicating every person in the dataset.
+"date": (required) Date-formatted date on which the event / stage occurred
+"stage": (required) String indicating the stage achieved by the individual on the specified date. Stages must match the string in the stages.order parameter. Additonal events may be included in the "stage" category, including death, loss to follow up, and interstage events defined in the other parameters.
+"group": (optional) String indicating any relevent groups of data.}
+
 \item{stages.order}{(required) stages.order is the parameter which defines the events to be considered in the main cascade and their order. This is a vector of strings matching items in the "Stage" column of the main data frame, e.g. c("Stage 1","Stage 2","Stage 3").}
 
 \item{groups.order}{(optional) This is a vector of groups, matching the "group" column of the main data frame. If left blank, no group comparisons will be performed. For the chart, each group will have its own row.}
@@ -27,12 +33,6 @@ long.cascade(events.long, stages.order, groups.order = NA,
 \item{x.axis.max}{This option shows the maximum range of the x axis in days. Defaults to 365 days (1 year).}
 
 \item{nochart}{Setting this to TRUE prevents the function from generating the main chart.}
-
-\item{df}{(required) The main dataframe input parameter. The data frame needs at least the following fields:
-"ID": (required) A string-based individual identifier, indicating every person in the dataset.
-"date": (required) Date-formatted date on which the event / stage occurred
-"stage": (required) String indicating the stage achieved by the individual on the specified date. Stages must match the string in the stages.order parameter. Additonal events may be included in the "stage" category, including death, loss to follow up, and interstage events defined in the other parameters.
-"group": (optional) String indicating any relevent groups of data.}
 
 \item{interstage.status.indicator}{(optional) (To be implemented) This is an altnernative to the interstage.event.indicator, where the user may define their own status indicator.}
 }
