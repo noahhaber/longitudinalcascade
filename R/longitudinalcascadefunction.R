@@ -230,7 +230,7 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             )
           # Change to censorship event if censored after axis limit
             events.wide[[paste("censorship.stage.",i,".to.",j,sep="")]] <- ifelse(
-              events.wide[[paste("time.stage.",i,".to.",j,sep="")]] > x.axis.max,
+              events.wide[[paste("time.stage.",i,".to.",j,sep="")]] >= x.axis.max,
               1, events.wide[[paste("censorship.stage.",i,".to.",j,sep="")]]
             )
         }
@@ -399,9 +399,10 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
                 strip.placement = "outside")
       # Add death event if present
         if (is.na(death.indicator)==FALSE){
+          print("we are here")
           chart <- chart +
-            geom_step(data=surv.death.combined,aes(x=surv.time,y=1-surv.surv)) +
-            geom_rect(data=surv.death.combined,aes(xmin=surv.time,xmax=lead(surv.time),ymin=1-surv.surv,ymax=1),alpha=1,fill="indianred1")
+            geom_step(data=surv.death.combined,aes(x=surv.time/365,y=1-surv.surv)) +
+            geom_rect(data=surv.death.combined,aes(xmin=surv.time/365,xmax=lead(surv.time)/365,ymin=1-surv.surv,ymax=1),alpha=1,fill="indianred1")
         }
   }
   else {
@@ -431,10 +432,19 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
   # Prepare export data
   {
     if (length(groups.order)>1){
-      output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.long" = events.long,"events.wide" = events.wide,
-                        "surv.diffs" = surv.diffs.combined)
+      if (is.na(death.indicator)){
+        output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.long" = events.long,"events.wide" = events.wide,
+                          "surv.diffs" = surv.diffs.combined)
+      } else{
+        output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.long" = events.long,"events.wide" = events.wide,"surv.death.combined" = surv.death.combined,
+                          "surv.diffs" = surv.diffs.combined)
+      }
     } else {
-      output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.long" = events.long,"events.wide" = events.wide)
+      if (is.na(death.indicator)){
+        output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.long" = events.long,"events.wide" = events.wide)
+      } else {
+        output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.long" = events.long,"events.wide" = events.wide,"surv.death.combined" = surv.death.combined)
+      }
     }
 
   }
