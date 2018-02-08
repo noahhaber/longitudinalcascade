@@ -399,7 +399,6 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
                 strip.placement = "outside")
       # Add death event if present
         if (is.na(death.indicator)==FALSE){
-          print("we are here")
           chart <- chart +
             geom_step(data=surv.death.combined,aes(x=surv.time/365,y=1-surv.surv)) +
             geom_rect(data=surv.death.combined,aes(xmin=surv.time/365,xmax=lead(surv.time)/365,ymin=1-surv.surv,ymax=1),alpha=1,fill="indianred1")
