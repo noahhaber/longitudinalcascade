@@ -24,8 +24,12 @@
 #' @import scales
 #' @export
 #' @examples
-#' # Pull in data
-#' 
+#' # Pull in data from example simulated dataset
+#' library(RCurl)
+#' url <- "https://raw.github.com/christophergandrud/Disproportionality_Data/master/Disproportionality.csv"
+#' long.cascade.data <- load(textConnection(getURL("https://github.com/noahhaber/longitudinalcascade/blob/master/simulated_data.rdata")))
+
+
 long.cascade <- function(events.long,stages.order,groups.order=NA,
                          death.indicator=NA,censorship.indicator=NA,interstage.event.indicator=NA,
                          allow.sub.lines=FALSE,allow.skips=FALSE,
