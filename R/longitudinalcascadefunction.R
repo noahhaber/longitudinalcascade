@@ -163,7 +163,7 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
                                                 NA,events.wide$date.censorship)
           events.wide$date.censorship <- as.Date.numeric(events.wide$date.censorship)
         }
-      # Generate time from each stage to death and censorship
+      # Generate time from each stage to death, censorship, and end of data collection
         for (i in 1:(length(stages.order)-1)){
           if (is.na(death.indicator)==FALSE){
             events.wide[[paste("time.stage.",i,".to.death",sep="")]] <- 
@@ -182,6 +182,12 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
           # Generate time to actual stage event if event occurs
             events.wide[[paste("time.stage.",i,".to.",j,sep="")]] <-
               events.wide[[paste("date.stage.",j,sep="")]] - events.wide[[paste("date.stage.",i,sep="")]]
+          # Generate maximum data collection time
+            max.time <- max(events.wide[[paste("time.stage.",i,".to.",j,sep="")]])
+          # Generate last date collected
+            max.date <- max(events.wide[[paste("date.stage.",j,sep="")]],na.rm=TRUE)
+          # Generate maximum possible time for transition (date of event start to last data collection)
+            events.wide[[paste("time.stage.",i,".to.",j,".last.date",sep="")]] <- max.date - events.wide[[paste("date.stage.",i,sep="")]]
           # Replace with time to censorship if event never happens and generate a censorship indicator flag
             if (is.na(censorship.indicator)==FALSE){
               events.wide[[paste("censorship.stage.",i,".to.",j,sep="")]] <- ifelse(
@@ -207,30 +213,30 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
               )
               events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]] <- ifelse(
                 (is.na(events.wide[[paste("date.stage.",i,sep="")]]) == FALSE) & (is.na(events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]])==TRUE),
-                x.axis.max,events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]]
+                events.wide[[paste("time.stage.",i,".to.",j,".last.date",sep="")]],events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]]
               )
               events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]] <- ifelse(
-                events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]] > x.axis.max,
-                x.axis.max,events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]]
+                events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]] > events.wide[[paste("time.stage.",i,".to.",j,".last.date",sep="")]],
+                events.wide[[paste("time.stage.",i,".to.",j,".last.date",sep="")]],events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]]
               )
               events.wide[[paste("censorship.death.stage.",i,".to.",j,sep="")]] <- ifelse(
-                events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]] >= x.axis.max,
+                events.wide[[paste("time.death.stage.",i,".to.",j,sep="")]] >= events.wide[[paste("time.stage.",i,".to.",j,".last.date",sep="")]],
                 1,0
               )
-          }
-          # Replace transition times where initializing event occurs but finishing does not, with censorship after x axis limit
+            }
+          # Replace transition times where initializing event occurs but finishing does not, with censorship after maximum data collection time
             events.wide[[paste("time.stage.",i,".to.",j,sep="")]] <- ifelse(
               is.na(events.wide[[paste("time.stage.",i,".to.",j,sep="")]]) == TRUE & is.na(events.wide[[paste("date.stage.",i,sep="")]]) == FALSE,
-              x.axis.max, events.wide[[paste("time.stage.",i,".to.",j,sep="")]]
+              events.wide[[paste("time.stage.",i,".to.",j,".last.date",sep="")]], events.wide[[paste("time.stage.",i,".to.",j,sep="")]]
             )
-          # Replace transition times greater than axis limit, with censorship after x axis limit
+          # Replace transition times greater than axis limit, with censorship after maximum data collection time
             events.wide[[paste("time.stage.",i,".to.",j,sep="")]] <- ifelse(
-              events.wide[[paste("time.stage.",i,".to.",j,sep="")]] > x.axis.max,
-              x.axis.max, events.wide[[paste("time.stage.",i,".to.",j,sep="")]]
+              events.wide[[paste("time.stage.",i,".to.",j,sep="")]] > events.wide[[paste("time.stage.",i,".to.",j,".last.date",sep="")]],
+              events.wide[[paste("time.stage.",i,".to.",j,".last.date",sep="")]], events.wide[[paste("time.stage.",i,".to.",j,sep="")]]
             )
-          # Change to censorship event if censored after axis limit
+          # Change to censorship event if censored after maximum data collection time
             events.wide[[paste("censorship.stage.",i,".to.",j,sep="")]] <- ifelse(
-              events.wide[[paste("time.stage.",i,".to.",j,sep="")]] >= x.axis.max,
+              events.wide[[paste("time.stage.",i,".to.",j,sep="")]] >= events.wide[[paste("time.stage.",i,".to.",j,".last.date",sep="")]],
               1, events.wide[[paste("censorship.stage.",i,".to.",j,sep="")]]
             )
         }
@@ -260,10 +266,11 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             chart.time <- as.integer(events.wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events.wide$selection==TRUE])
             chart.event <- as.integer(!events.wide[[paste("censorship.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events.wide$selection==TRUE])
           # Add dummy event to allow graphical continuation of data past last known event
-            chart.time <- c(chart.time, x.axis.max)
-            chart.event <- c(chart.event,1)
-            chart.time <- c(chart.time, x.axis.max + 1)
-            chart.event <- c(chart.event,1)
+            
+            #chart.time <- c(chart.time, x.axis.max)
+            #chart.event <- c(chart.event,1)
+            # chart.time <- c(chart.time, x.axis.max + 1)
+            # chart.event <- c(chart.event,1)
           # Generate survival data
             chart.surv <- survfit(Surv(time = chart.time, event = chart.event) ~ 1)
             surv.time <- chart.surv$time
@@ -311,8 +318,8 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             chart.time <- as.integer(events.wide[[paste("time.death.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events.wide$selection==TRUE])
             chart.event <- as.integer(!events.wide[[paste("censorship.death.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events.wide$selection==TRUE])
           # Add dummy event to allow graphical continuation of data past last known event
-            chart.time <- c(chart.time, (x.axis.max+1))
-            chart.event <- c(chart.event,1)
+            # chart.time <- c(chart.time, (x.axis.max+1))
+            # chart.event <- c(chart.event,1)
           # Generate survival data
             chart.surv <- survfit(Surv(time = chart.time, event = chart.event) ~ 1)
             surv.time <- chart.surv$time
@@ -430,10 +437,32 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
       # Package tests
         surv.diffs.combined <- do.call("list",
                                  lapply(1:(length(stages.order)-1),function(x) generate.surv.diff(x)))
-
     }
+    # Test for between-group differences, using Cox proportional hazards at each stage transition
+      # Function to take two groups ad output Cox PH regression stats
+        generate.bivar.cox.ph <- function(init.stage,reference.group){
+          # Keep only relevent variables for internal manipulation
+            time.var <- paste("time.stage.",(init.stage),".to.",(init.stage+1),sep="")
+            events.var <- paste("censorship.stage.",(init.stage),".to.",(init.stage+1),sep="")
+            events.wide.internal <- events.wide[c("group",time.var,events.var)]
+            colnames(events.wide.internal) <- c("group","time","event")
+          # Designate reference vs. comparator groups
+            group.order.internal <- c(reference.group,groups.order[groups.order!=reference.group])
+            events.wide.internal$group <- ordered(events.wide.internal$group,levels=group.order.internal,labels=group.order.internal)
+          # Run Cox Proportional hazards
+            events.wide.group.1 <- events.wide[events.wide$group==group.1,]
+
+          chart.time.1 <- as.integer(events.wide[[paste("time.stage.",(init.stage),".to.",(init.stage+1),sep="")]])
+          chart.event.1 <- as.integer(!events.wide[[paste("censorship.stage.",(init.stage),".to.",(init.stage+1),sep="")]])
+          
+          
+          
+          events.wide.group.2 <- events.wide[events.wide$group==group.2,]
+          
+        }
 
   }
+  # Generate between-group statistical tests
   # Prepare export data
   {
     if (length(groups.order)>1){
