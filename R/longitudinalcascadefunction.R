@@ -459,7 +459,7 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             colnames(events.wide.internal) <- c("group","time","event")
           # Designate reference vs. comparator groups
             #group.order.internal <- c(reference.group,groups.order[groups.order!=reference.group])
-            events.wide.internal$group <- factor(events.wide.internal$group,levels=group.order.internal,labels=group.order.internal)
+            events.wide.internal$group <- factor(events.wide.internal$group,levels=groups.order,labels=groups.order)
             events.wide.internal$group <- relevel(events.wide.internal$group, ref = reference.group)
           # Run Cox Proportional hazards
             cox.ph <- coxph(Surv(time = time, event = event) ~ group,data=events.wide.internal)
