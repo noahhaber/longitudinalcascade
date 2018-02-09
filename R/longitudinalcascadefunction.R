@@ -409,7 +409,6 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
           theme(
             panel.grid = element_blank(),
             plot.margin = unit(c(.1,.1,.1,.1), "cm"),
-            #axis.title.x=element_blank(),
             axis.title.y=element_blank(),
             legend.position="bottom",
             legend.title=element_blank(),
