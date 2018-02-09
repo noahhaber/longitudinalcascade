@@ -367,6 +367,9 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
         # Convert back to regular color
           return(unname(sapply(data.frame(hsv.color.new), function(x) do.call(hsv, as.list(x)))))
       }
+    # X scale creator functions
+      round2 <- function(x, n=0) {scale<-10^n; trunc(x*scale+sign(x)*0.5)/scale}
+      x.scale.function <- function(x) round2(x,0)
     # Generate colors
       main.line.colors <- color.gradient("#4472C4",(length(stages.order)-1))
     # Stacked chart
@@ -390,7 +393,8 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             strip.text = element_text(size = 12,hjust=0),
             panel.spacing = unit(1, "lines")
           ) +
-          scale_x_continuous(limits = (x.axis.range/365),expand = c(0, 0)) +
+          scale_x_continuous(limits = (x.axis.range/365),expand = c(0, 0),
+                             labels=x.scale.function) +
           scale_y_continuous(limits = c(0, 1),expand = c(0, 0),labels=percent) +
           scale_color_manual(values=c(rep("black",length(stages.order)-1))) +
           facet_grid(group.factor ~ start.stage.factor,
