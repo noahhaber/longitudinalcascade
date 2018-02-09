@@ -63,7 +63,6 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
     # Packages
     {
       library(survival)
-      #library(survsim)
       library(ggplot2)
       library(tidyr)
       library(dplyr)
@@ -380,10 +379,19 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
     # Generate colors
       main.line.colors <- color.gradient("#4472C4",(length(stages.order)-1))
     # Stacked chart
-      # Temporary for putting in years
-        surv.combined.chart <- surv.combined
-        surv.combined.chart$surv.time = surv.combined.chart$surv.time/365
-
+      # Data manipulation
+      {
+        # Generate data
+          surv.combined.chart <- surv.combined
+          surv.death.combined.chart <- surv.death.combined
+        # Temporary for putting in years
+          surv.combined.chart$surv.time = surv.combined.chart$surv.time/365
+          surv.death.combined.chart$surv.time = surv.death.combined.chart$surv.time/365
+        # Keep only data within the chart limits (for speed of estimation)
+          surv.combined.chart <- subset(surv.combined.chart,surv.combined.chart$surv.time <= (x.axis.max + 1))
+          surv.death.combined.chart <- subset(surv.death.combined.chart,surv.death.combined.chart$surv.time <= (x.axis.max + 1))
+      }
+      # Generate chart
         chart <- ggplot(data=surv.combined.chart) +
           geom_rect(aes(xmin=surv.time,xmax=lead(surv.time),ymin=0,ymax=surv.surv,fill=end.stage.factor),alpha=1) +
           scale_fill_manual(values=main.line.colors) +
@@ -413,8 +421,8 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
       # Add death event if present
         if (is.na(death.indicator)==FALSE){
           chart <- chart +
-            geom_step(data=surv.death.combined,aes(x=surv.time/365,y=1-surv.surv)) +
-            geom_rect(data=surv.death.combined,aes(xmin=surv.time/365,xmax=lead(surv.time)/365,ymin=1-surv.surv,ymax=1),alpha=1,fill="indianred1")
+            geom_step(data=surv.death.combined.chart,aes(x=surv.time,y=1-surv.surv)) +
+            geom_rect(data=surv.death.combined.chart,aes(xmin=surv.time,xmax=lead(surv.time),ymin=1-surv.surv,ymax=1),alpha=1,fill="indianred1")
         }
   }
   else {
@@ -437,49 +445,69 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
       # Package tests
         surv.diffs.combined <- do.call("list",
                                  lapply(1:(length(stages.order)-1),function(x) generate.surv.diff(x)))
+        names.list <- paste0("init.stage.",1:(length(stages.order)-1))
+        names(surv.diffs.combined) <- names.list
     }
     # Test for between-group differences, using Cox proportional hazards at each stage transition
+    if (length(groups.order)>1){
       # Function to take two groups ad output Cox PH regression stats
-        generate.bivar.cox.ph <- function(init.stage,reference.group){
+        gen.cox.ph <- function(init.stage,reference.group){
           # Keep only relevent variables for internal manipulation
             time.var <- paste("time.stage.",(init.stage),".to.",(init.stage+1),sep="")
             events.var <- paste("censorship.stage.",(init.stage),".to.",(init.stage+1),sep="")
             events.wide.internal <- events.wide[c("group",time.var,events.var)]
             colnames(events.wide.internal) <- c("group","time","event")
           # Designate reference vs. comparator groups
-            group.order.internal <- c(reference.group,groups.order[groups.order!=reference.group])
-            events.wide.internal$group <- ordered(events.wide.internal$group,levels=group.order.internal,labels=group.order.internal)
+            #group.order.internal <- c(reference.group,groups.order[groups.order!=reference.group])
+            events.wide.internal$group <- factor(events.wide.internal$group,levels=group.order.internal,labels=group.order.internal)
+            events.wide.internal$group <- relevel(events.wide.internal$group, ref = reference.group)
           # Run Cox Proportional hazards
-            events.wide.group.1 <- events.wide[events.wide$group==group.1,]
-
-          chart.time.1 <- as.integer(events.wide[[paste("time.stage.",(init.stage),".to.",(init.stage+1),sep="")]])
-          chart.event.1 <- as.integer(!events.wide[[paste("censorship.stage.",(init.stage),".to.",(init.stage+1),sep="")]])
-          
-          
-          
-          events.wide.group.2 <- events.wide[events.wide$group==group.2,]
-          
+            cox.ph <- coxph(Surv(time = time, event = event) ~ group,data=events.wide.internal)
+            # name <- paste0("ref.group.",reference.group)
+            # list.form <- list(cox.ph)
+            # names(list.form) <- name
+            return(cox.ph)
         }
-
+      # Generate tests for each reference group, within a beginning stage
+        gen.cox.ph.groups <- function(init.stage){
+          output <- do.call("list",
+                  lapply(1:(length(groups.order)),function(x) gen.cox.ph(init.stage,x)))
+          names.list <- paste0("ref.group.",1:(length(groups.order)))
+          names(output) <- names.list
+          return(output)
+        }
+      # Generate set of tests for each beginning stage
+        gen.cox.ph.stages <- function(){
+          output <- do.call("list",
+                            lapply(1:(length(stages.order)-1),function(x) gen.cox.ph.groups(x)))
+          names.list <- paste0("init.stage.",1:(length(stages.order)-1))
+          names(output) <- names.list
+          return(output)
+        }
+        cox.ph.combined <- gen.cox.ph.stages()
+    }
+        
   }
-  # Generate between-group statistical tests
   # Prepare export data
   {
     if (length(groups.order)>1){
       if (is.na(death.indicator)){
-        output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.long" = events.long,"events.wide" = events.wide,
-                          "surv.diffs" = surv.diffs.combined)
+        output.df <- list("chart" = chart,"surv.dataset" = surv.combined,
+                          "events.long" = events.long,"events.wide" = events.wide,
+                          "surv.cox.ph" = cox.ph.combined,"surv.diffs" = surv.diffs.combined)
       } else{
-        output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.long" = events.long,"events.wide" = events.wide,"surv.death.combined" = surv.death.combined,
-                          "surv.diffs" = surv.diffs.combined)
+        output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"surv.death.combined" = surv.death.combined,
+                          "events.long" = events.long,"events.wide" = events.wide,
+                          "surv.cox.ph" = cox.ph.combined,"surv.diffs" = surv.diffs.combined)
       }
     } else {
       if (is.na(death.indicator)){
-        output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.long" = events.long,"events.wide" = events.wide)
+        output.df <- list("chart" = chart,"surv.dataset" = surv.combined,
+                          "events.long" = events.long,"events.wide" = events.wide)
       } else {
-        output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"events.long" = events.long,"events.wide" = events.wide,"surv.death.combined" = surv.death.combined)
+        output.df <- list("chart" = chart,"surv.dataset" = surv.combined,"surv.death.combined" = surv.death.combined,
+                          "events.long" = events.long,"events.wide" = events.wide)
       }
     }
-
   }
 }
