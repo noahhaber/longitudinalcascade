@@ -385,7 +385,7 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
           theme(
             panel.grid = element_blank(),
             plot.margin = unit(c(.1,.1,.1,.1), "cm"),
-            axis.title.x=element_blank(),
+            #axis.title.x=element_blank(),
             axis.title.y=element_blank(),
             legend.position="bottom",
             legend.title=element_blank(),
@@ -394,7 +394,9 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             panel.spacing = unit(1, "lines")
           ) +
           scale_x_continuous(limits = (x.axis.range/365),expand = c(0, 0),
-                             labels=x.scale.function) +
+                             labels=x.scale.function,
+                             breaks = c(0,round2(x.axis.range/365,0))) +
+          xlab("Time (years) from start of stage") +
           scale_y_continuous(limits = c(0, 1),expand = c(0, 0),labels=percent) +
           scale_color_manual(values=c(rep("black",length(stages.order)-1))) +
           facet_grid(group.factor ~ start.stage.factor,
