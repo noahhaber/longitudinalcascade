@@ -395,7 +395,9 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
           surv.combined.chart.extra <- surv.combined.chart[!to.drop]
           surv.combined.chart.extra <- unique(surv.combined.chart.extra)
           surv.combined.chart.extra$surv.surv <- 1
-          surv.combined.chart.extra$surv.time <- x.axis.max
+          surv.combined.chart.extra$surv.time <- x.axis.max + 1
+        # Add them back to the main dataset
+          surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.extra)
 
       }
       # Generate chart
