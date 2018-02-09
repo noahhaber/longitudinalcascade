@@ -352,32 +352,32 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
   # Generate chart graphics
   if (nochart==FALSE){
     # Generate transition charts
-    # Color gradient creator
-      color.gradient <- function(original.color,number.divisions,darken=0){
-        # Generate hsv color
-          hsv.color.orig <- rgb2hsv(col2rgb(original.color))
-        # Manipulate if set to lighten
-          if (darken == 0) {
-            hsv.color.new <- t(matrix(c(rep(hsv.color.orig[1,1],number.divisions),
-                                        hsv.color.orig[2,1]*seq(1,1/number.divisions,-1/number.divisions),
-                                        (1-hsv.color.orig[3,1])*seq(0,(number.divisions-1)/(number.divisions),1/(number.divisions))+hsv.color.orig[3,1]),
-                                      nrow=number.divisions))
-          } else {
-            hsv.color.new <- t(matrix(c(rep(hsv.color.orig[1,1],number.divisions),
-                                        (1-hsv.color.orig[2,1])*seq(0,(number.divisions-1)/(number.divisions),1/(number.divisions))+hsv.color.orig[2,1],
-                                        hsv.color.orig[3,1]*seq(1,1/number.divisions,-1/number.divisions)),
-                                      nrow=number.divisions))
-
-          }
-          rownames(hsv.color.new) <- c("h","s","v")
-        # Convert back to regular color
-          return(unname(sapply(data.frame(hsv.color.new), function(x) do.call(hsv, as.list(x)))))
-      }
-    # X scale creator functions
-      round2 <- function(x, n=0) {scale<-10^n; trunc(x*scale+sign(x)*0.5)/scale}
-      x.scale.function <- function(x) round2(x,0)
-    # Generate colors
-      main.line.colors <- color.gradient("#4472C4",(length(stages.order)-1))
+      # Color gradient creator
+        color.gradient <- function(original.color,number.divisions,darken=0){
+          # Generate hsv color
+            hsv.color.orig <- rgb2hsv(col2rgb(original.color))
+          # Manipulate if set to lighten
+            if (darken == 0) {
+              hsv.color.new <- t(matrix(c(rep(hsv.color.orig[1,1],number.divisions),
+                                          hsv.color.orig[2,1]*seq(1,1/number.divisions,-1/number.divisions),
+                                          (1-hsv.color.orig[3,1])*seq(0,(number.divisions-1)/(number.divisions),1/(number.divisions))+hsv.color.orig[3,1]),
+                                        nrow=number.divisions))
+            } else {
+              hsv.color.new <- t(matrix(c(rep(hsv.color.orig[1,1],number.divisions),
+                                          (1-hsv.color.orig[2,1])*seq(0,(number.divisions-1)/(number.divisions),1/(number.divisions))+hsv.color.orig[2,1],
+                                          hsv.color.orig[3,1]*seq(1,1/number.divisions,-1/number.divisions)),
+                                        nrow=number.divisions))
+  
+            }
+            rownames(hsv.color.new) <- c("h","s","v")
+          # Convert back to regular color
+            return(unname(sapply(data.frame(hsv.color.new), function(x) do.call(hsv, as.list(x)))))
+        }
+      # X scale creator functions
+        round2 <- function(x, n=0) {scale<-10^n; trunc(x*scale+sign(x)*0.5)/scale}
+        x.scale.function <- function(x) round2(x,0)
+      # Generate colors
+        main.line.colors <- color.gradient("#4472C4",(length(stages.order)-1))
     # Stacked chart
       # Data manipulation
       {
@@ -390,6 +390,13 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
         # Keep only data within the chart limits (for speed of estimation)
           surv.combined.chart <- subset(surv.combined.chart,surv.combined.chart$surv.time <= (x.axis.max + 1))
           surv.death.combined.chart <- subset(surv.death.combined.chart,surv.death.combined.chart$surv.time <= (x.axis.max + 1))
+        # Generate "fake" events to keep graphics going until the end of chart
+          to.drop <- names(surv.combined.chart) %in% c("surv.time","surv.surv")
+          surv.combined.chart.extra <- surv.combined.chart[!to.drop]
+          surv.combined.chart.extra <- unique(surv.combined.chart.extra)
+          surv.combined.chart.extra$surv.surv <- 1
+          surv.combined.chart.extra$surv.time <- x.axis.max
+
       }
       # Generate chart
         chart <- ggplot(data=surv.combined.chart) +
