@@ -8,15 +8,16 @@
 #' "group": (optional) String indicating any relevent groups of data.
 #' @param stages.order (required) stages.order is the parameter which defines the events to be considered in the main cascade and their order. This is a vector of strings matching items in the "Stage" column of the main data frame, e.g. c("Stage 1","Stage 2","Stage 3").
 #' @param groups.order (optional) This is a vector of groups, matching the "group" column of the main data frame. If left blank, no group comparisons will be performed. For the chart, each group will have its own row.
+#' @param groups.date.breaks (optional) (To be implemented) If groups.date.breaks is enabled, the grouping will be defined by date range of entry event for each transition, rather than groups of individuals. Each transition will independently determine its own groups, based on the time in which the entrance event occurs. Times are determined by a vector of date breaks. Each group is defined as starting from a given date break value and continuing until it reaches the subsequent date break, not including data from that ending break value. For example, setting the break values to be January 1, 2011, January 1, 2012, and January 1, 2013 will create two groups. The first group will take individuals who entered each stage from January 1, 2011 to Dec 31, 2011, and the second will take individuals who entered into the stage from January 1, 2012 to Dec 31, 2012.
 #' @param death.indicator (optional) This parameter is the string which indicates a death event in the dataset. If specified, between-stage mortality will be estimated and shown as a KM curve on the top of the chart(s). If left blank, death events will not be estimated.
-#' @param censorship.indicator (optional) This parameter is the string which indicates a right-censorship event. Most commonly, this will indicate permanent loss to follow up and/or end of data collection. 
+#' @param censorship.indicator (optional) This parameter is the string which indicates a right-censorship event. Most commonly, this will indicate permanent loss to follow up and/or end of data collection.
 #' @param interstage.event.indicator (optional) (To be implemented) This is the string pertaining to an interstage event, such as clinic visits, whichc do not trigger stage completion. The cumulative number of these are shown as striations on the charts above the main event curve, corresponding to the proportion of individuals who have had X number of interstage events from the time of stage start to end, who have not yet transitioned into the next stage nor died.
 #' @param interstage.status.indicator (optional) (To be implemented) This is an altnernative to the interstage.event.indicator, where the user may define their own status indicator.
 #' @param allow.sub.lines Sub-lines indicate subsequent transitions across the cascade. If TRUE, the main chart will show transitions to all possible subsequent events. For example, if there are 4 stages (1-4), the leftmost chart will show each transition from 1-2, 1-3, and 1-4, while the next chart will show 2-3 and 2-4, and the last chart will show only 3-4. If FALSE, the charts will only show transition to the subsequent stage.
 #' @param allow.skips (To be replaced with additional options) This option shows "skips" across the cascade in each chart, as indicated by the y intercept. If FALSE, each stage will start only with people who have not moved on to a subsequent stage, i.e. the y intercept will always be 0. If TRUE, an individual can enter into a stage even if they have "skipped" it. For example, an individual may go straight from stage 1 to stage 3, skipping 2. If this indicator is FALSE, the stage transition chart from 2-3 will not contain this individual in the denomenator. If TRUE, this individual will be counted in the denomenator for this transition, but will be counted as having transitioned into stage 3 immediately upon entering stage 2.
 #' @param x.axis.max This option shows the maximum range of the x axis in days. Defaults to 365 days (1 year).
 #' @param nochart Setting this to TRUE prevents the function from generating the main chart.
-#' @import survival 
+#' @import survival
 #' @import ggplot2
 #' @import tidyr
 #' @import dplyr
@@ -27,7 +28,7 @@
 #' # Pull in data from example simulated dataset
 #' library(longitudinalcascade)
 #' data(events.long_cascade_sim)
-#' 
+#'
 #' # Set up options
 #' stages.order <- c("First tested positive","Knows status","Linked to care","Eligible for ART","Initiated ART","Therapeutic response")
 #' groups.order <- c("Group 1","Group 2","Group 3")
@@ -36,26 +37,27 @@
 #' censorship.indicator <- "LTFU"
 #' allow.sub.lines <- TRUE
 #' allow.skips <- TRUE
-#' 
+#'
 #' # Create cascade object
 #' long.cascade.sim <- long.cascade(events.long,stages.order=stages.order,groups.order=groups.order,
 #' death.indicator=death.indicator,censorship.indicator=censorship.indicator,
 #' allow.sub.lines=allow.sub.lines,allow.skips=allow.skips)
-#' 
-#' # Output chart
+#'
+#' # Print/output main chart
 #' long.cascade.sim$chart
-#' # Output full survival dataset generted
-#' long.cascade.sim$surv.dataset
+#' # Output full survival dataset generated, as a data frame
+#' df.long.cascade.survival <- long.cascade.sim$surv.dataset
 #' # Output heterogeneity test
-#' long.cascade.sim$surv.diffs 
+#' long.cascade.sim$surv.diffs
 #' # Output original long-formatted list of events
-#' long.cascade.sim$events.long 
+#' df.events.long <- long.cascade.sim$events.long
 #' # Output generated wide-formatted list of events
-#' long.cascade.sim$events.wide
-#' 
+#' df.events.wide <- long.cascade.sim$events.wide
+#'
 long.cascade <- function(events.long,stages.order,groups.order=NA,
                          death.indicator=NA,censorship.indicator=NA,interstage.event.indicator=NA,
                          allow.sub.lines=FALSE,allow.skips=FALSE,
+                         groups.date.breaks=NA,
                          x.axis.max=365,
                          nochart=FALSE) {
   # Initialize function
@@ -69,20 +71,14 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
       library(zoo)
       library(scales)
     }
-    # Settings values
-      events.long.orig <- events.long
-      x.axis.range <- c(0,x.axis.max)
-    # Generate a single "group" if group is unchanged
-      if (anyNA(groups.order)) {
-        events.long$group <- "All observations"
-        groups.order <- c("All observations")
-      }
-      else {}
+
   }
   # Data manipulation
   {
     # Transform data into wide form
     {
+      # Preserve data
+        events.long.orig <- events.long
       # Generate stage names
         stages <- as.data.frame(matrix(c(stages.order,paste(rep("stage"),as.character(seq(1:length(stages.order))),sep="."),1:length(stages.order)),ncol=3),stringsAsFactors=FALSE)
         colnames(stages) <- c("stage","stage.number","stage.index")
@@ -97,6 +93,37 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
       # Replace names with "date"
         names(events.wide) <- gsub("stage.", "date.stage.",names(events.wide))
     }
+    # Generate and adjust groupings, based on user inputs
+    {
+      # Generate a single "group" if groups are not specified
+        if (anyNA(groups.order)) {
+          events.long$group <- "All observations"
+          groups.order <- c("All observations")
+        } else{}
+      # Generate time-based groups if time breaks are specified
+        if (anyNA(groups.date.breaks)==FALSE){
+          # Generate group names from breaks
+            groups.order <- c(paste0(as.character(groups.date.breaks[1])," to ",as.character(groups.date.breaks[2]-1)))
+            for (i in 2:(length(groups.date.breaks)-1)){
+              groups.order <- c(groups.order,paste0(as.character(groups.date.breaks[i])," to ",as.character(groups.date.breaks[i+1]-1)))
+            }
+          # Generate grouping for each event except the last to determine whether the start event is within time breaks
+            for (stage.index in 1:(length(stages.order)-1)){
+              events.wide[[paste0("date.stage.",stage.index,".group")]] <- NA
+              for (break.index in 1:(length(groups.date.breaks)-1)){
+                events.wide[[paste0("date.stage.",stage.index,".group")]] <- ifelse(
+                  (events.wide[[paste0("date.stage.",stage.index)]] >= groups.date.breaks[break.index]) & (events.wide[[paste0("date.stage.",stage.index)]] < groups.date.breaks[break.index+1]),
+                  groups.order[break.index],
+                  events.wide[[paste0("date.stage.",stage.index,".group")]])
+                  #events.wide[[paste0("date.stage.group.",group.index)]])
+              }
+              events.wide[[paste0("date.stage.",stage.index,".group")]] <- ifelse(
+                is.na(events.wide[[paste0("date.stage.",stage.index,".group")]]),
+                "No group membership",
+                events.wide[[paste0("date.stage.",stage.index,".group")]])
+            }
+        } else{}
+    }
     # Fix ordering, so that completion of a later stage indicates completion of earlier stage, and mark where this happens
     {
       for (stage.index in seq(length(stages.order)-1,1,-1)){
@@ -105,9 +132,9 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
           latter.date.name <- paste("date.stage.",stage.index+1,sep="")
           former.date.origin.index.name <- paste("stage.",stage.index,".origin.index",sep="")
           latter.date.origin.index.name <- paste("stage.",stage.index+1,".origin.index",sep="")
-        
+
         # Determine whether or not current stage is eligible for change
-          events.wide$temp_flag <- ifelse(events.wide[[latter.date.name]] < events.wide[[former.date.name]] | 
+          events.wide$temp_flag <- ifelse(events.wide[[latter.date.name]] < events.wide[[former.date.name]] |
                                             is.na(events.wide[[former.date.name]])==TRUE,1,0)
           events.wide$temp_flag <- ifelse(is.na(events.wide$temp_flag)==TRUE,0,events.wide$temp_flag)
         # Check if this is the last event (determines whether there is an available following stage index)
@@ -165,11 +192,11 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
       # Generate time from each stage to death, censorship, and end of data collection
         for (i in 1:(length(stages.order)-1)){
           if (is.na(death.indicator)==FALSE){
-            events.wide[[paste("time.stage.",i,".to.death",sep="")]] <- 
+            events.wide[[paste("time.stage.",i,".to.death",sep="")]] <-
               events.wide[["date.death"]] - events.wide[[paste("date.stage.",i,sep="")]]
           }
           if (is.na(censorship.indicator)==FALSE){
-            events.wide[[paste("time.stage.",i,".to.censorship",sep="")]] <- 
+            events.wide[[paste("time.stage.",i,".to.censorship",sep="")]] <-
               events.wide[["date.censorship"]] - events.wide[[paste("date.stage.",i,sep="")]]
           }
         }
@@ -247,15 +274,26 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
       {
         # Function to generate survival data for a single curve
           gen.survival.data <- function(start.stage.index,end.stage.index,group.index){
-          
+
           # Select data
             if (allow.skips==TRUE){
-              events.wide$selection <- is.na(events.wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]])==FALSE &
+              if (anyNA(groups.date.breaks)==TRUE){
+                events.wide$selection <- is.na(events.wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]])==FALSE &
                 events.wide$group == groups.order[group.index]
+              } else {
+                events.wide$selection <- is.na(events.wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]])==FALSE &
+                events.wide[[paste0("date.stage.",start.stage.index,".group")]] == groups.order[group.index]
+              }
             } else {
-              events.wide$selection <- is.na(events.wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]])==FALSE &
-                events.wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]]!=0 &
-                events.wide$group == groups.order[group.index]
+              if (anyNA(groups.date.breaks)==TRUE){
+                events.wide$selection <- is.na(events.wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]])==FALSE &
+                  events.wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]]!=0 &
+                  events.wide$group == groups.order[group.index]
+              } else {
+                events.wide$selection <- is.na(events.wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]])==FALSE &
+                  events.wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]]!=0 &
+                  events.wide[[paste0("date.stage.",start.stage.index,".group")]] == groups.order[group.index]
+              }
               # Remove those who are disqualified from the "0+1" stage events from "0+n"
                 events.wide$selection <- ifelse(events.wide[[paste("time.stage.",start.stage.index,".to.",(start.stage.index+1),sep="")]]==0,
                                                 FALSE,
@@ -264,12 +302,6 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
           # Generate list of events
             chart.time <- as.integer(events.wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events.wide$selection==TRUE])
             chart.event <- as.integer(!events.wide[[paste("censorship.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events.wide$selection==TRUE])
-          # Add dummy event to allow graphical continuation of data past last known event
-            
-            #chart.time <- c(chart.time, x.axis.max)
-            #chart.event <- c(chart.event,1)
-            # chart.time <- c(chart.time, x.axis.max + 1)
-            # chart.event <- c(chart.event,1)
           # Generate survival data
             chart.surv <- survfit(Surv(time = chart.time, event = chart.event) ~ 1)
             surv.time <- chart.surv$time
@@ -309,16 +341,17 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
         if (is.na(death.indicator)==FALSE){
         # Function to generate survival data for a single curve
           gen.death.data <- function(start.stage.index,end.stage.index,group.index){
-          
           # Select data
-            events.wide$selection <- is.na(events.wide[[paste("time.death.stage.",start.stage.index,".to.",end.stage.index,sep="")]])==FALSE &
-              events.wide$group == groups.order[group.index]
+            if (anyNA(groups.date.breaks)==TRUE){
+              events.wide$selection <- is.na(events.wide[[paste("time.death.stage.",start.stage.index,".to.",end.stage.index,sep="")]])==FALSE &
+                events.wide$group == groups.order[group.index]
+            } else {
+              events.wide$selection <- is.na(events.wide[[paste("time.death.stage.",start.stage.index,".to.",end.stage.index,sep="")]])==FALSE &
+              events.wide[[paste0("date.stage.",start.stage.index,".group")]] == groups.order[group.index]
+            }
           # Generate list of events
             chart.time <- as.integer(events.wide[[paste("time.death.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events.wide$selection==TRUE])
             chart.event <- as.integer(!events.wide[[paste("censorship.death.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events.wide$selection==TRUE])
-          # Add dummy event to allow graphical continuation of data past last known event
-            # chart.time <- c(chart.time, (x.axis.max+1))
-            # chart.event <- c(chart.event,1)
           # Generate survival data
             chart.surv <- survfit(Surv(time = chart.time, event = chart.event) ~ 1)
             surv.time <- chart.surv$time
@@ -350,59 +383,126 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
     }
   }
   # Generate chart graphics
-  if (nochart==FALSE){
-    # Generate transition charts
-      # Color gradient creator
-        color.gradient <- function(original.color,number.divisions,darken=0){
-          # Generate hsv color
-            hsv.color.orig <- rgb2hsv(col2rgb(original.color))
-          # Manipulate if set to lighten
-            if (darken == 0) {
-              hsv.color.new <- t(matrix(c(rep(hsv.color.orig[1,1],number.divisions),
-                                          hsv.color.orig[2,1]*seq(1,1/number.divisions,-1/number.divisions),
-                                          (1-hsv.color.orig[3,1])*seq(0,(number.divisions-1)/(number.divisions),1/(number.divisions))+hsv.color.orig[3,1]),
-                                        nrow=number.divisions))
-            } else {
-              hsv.color.new <- t(matrix(c(rep(hsv.color.orig[1,1],number.divisions),
-                                          (1-hsv.color.orig[2,1])*seq(0,(number.divisions-1)/(number.divisions),1/(number.divisions))+hsv.color.orig[2,1],
-                                          hsv.color.orig[3,1]*seq(1,1/number.divisions,-1/number.divisions)),
-                                        nrow=number.divisions))
-  
-            }
-            rownames(hsv.color.new) <- c("h","s","v")
-          # Convert back to regular color
-            return(unname(sapply(data.frame(hsv.color.new), function(x) do.call(hsv, as.list(x)))))
-        }
-      # X scale creator functions
-        round2 <- function(x, n=0) {scale<-10^n; trunc(x*scale+sign(x)*0.5)/scale}
-        x.scale.function <- function(x) round2(x,0)
-      # Generate colors
-        main.line.colors <- color.gradient("#4472C4",(length(stages.order)-1))
-    # Stacked chart
+  {
+    if (nochart==FALSE){
+      # Settings
+      {
+        # Color gradient creator
+          color.gradient <- function(original.color,number.divisions,darken=0){
+            # Generate hsv color
+              hsv.color.orig <- rgb2hsv(col2rgb(original.color))
+            # Manipulate if set to lighten
+              if (darken == 0) {
+                hsv.color.new <- t(matrix(c(rep(hsv.color.orig[1,1],number.divisions),
+                                            hsv.color.orig[2,1]*seq(1,1/number.divisions,-1/number.divisions),
+                                            (1-hsv.color.orig[3,1])*seq(0,(number.divisions-1)/(number.divisions),1/(number.divisions))+hsv.color.orig[3,1]),
+                                          nrow=number.divisions))
+              } else {
+                hsv.color.new <- t(matrix(c(rep(hsv.color.orig[1,1],number.divisions),
+                                            (1-hsv.color.orig[2,1])*seq(0,(number.divisions-1)/(number.divisions),1/(number.divisions))+hsv.color.orig[2,1],
+                                            hsv.color.orig[3,1]*seq(1,1/number.divisions,-1/number.divisions)),
+                                          nrow=number.divisions))
+
+              }
+              rownames(hsv.color.new) <- c("h","s","v")
+            # Convert back to regular color
+              return(unname(sapply(data.frame(hsv.color.new), function(x) do.call(hsv, as.list(x)))))
+          }
+        # X scale creator functions
+          round2 <- function(x, n=0) {scale<-10^n; trunc(x*scale+sign(x)*0.5)/scale}
+          x.scale.function <- function(x) round2(x,0)
+          x.axis.range <- c(0,x.axis.max)
+        # Generate colors
+          main.line.colors <- color.gradient("#4472C4",(length(stages.order)-1))
+      }
       # Data manipulation
       {
-        # Generate data
-          surv.combined.chart <- surv.combined
-          surv.death.combined.chart <- surv.death.combined
-        # Temporary for putting in years
-          surv.combined.chart$surv.time = surv.combined.chart$surv.time/365
-          surv.death.combined.chart$surv.time = surv.death.combined.chart$surv.time/365
-        # Keep only data within the chart limits (for speed of estimation)
-          surv.combined.chart <- subset(surv.combined.chart,surv.combined.chart$surv.time <= (x.axis.max + 1))
-          surv.death.combined.chart <- subset(surv.death.combined.chart,surv.death.combined.chart$surv.time <= (x.axis.max + 1))
-        # Generate "fake" events to keep graphics going until the end of chart
-          to.drop <- names(surv.combined.chart) %in% c("surv.time","surv.surv")
-          surv.combined.chart.extra <- surv.combined.chart[!to.drop]
-          surv.combined.chart.extra <- unique(surv.combined.chart.extra)
-          surv.combined.chart.extra$surv.surv <- 1
-          surv.combined.chart.extra$surv.time <- x.axis.max + 1
-        # Add them back to the main dataset
-          surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.extra)
+        # Main events
+        {
+          # Generate data
+            surv.combined.chart <- surv.combined
+          # Drop any events past x axis range
+            surv.combined.chart <- subset(surv.combined.chart,surv.combined.chart$surv.time<=x.axis.max)
+          # Drop out duplicate boxes (due to censoring) to reduce drawing time
+            surv.combined.chart <- surv.combined.chart %>%
+              arrange(group.factor,start.stage.factor,end.stage.factor,surv.time) %>%
+              group_by(surv.surv,start.stage.factor,end.stage.factor,group.factor) %>%
+              slice(c(n()))
+          # Generate beginning of axis events to keep graphics going until the end of chart
+            surv.combined.chart.extra <- surv.combined.chart
+            surv.combined.chart.extra$surv.surv <- 0
+            surv.combined.chart.extra$surv.time <- 0
+            surv.combined.chart.extra <- unique(surv.combined.chart.extra)
+            surv.combined.chart.extra <- surv.combined.chart.extra[, colnames(surv.combined.chart)]
+            surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.extra)
+            # Rearrange and sort for drawing
+            surv.combined.chart <- surv.combined.chart %>%
+              arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
+          # Generate rectangle ends for drawing shading
+            #surv.combined.chart$rect.end <- ifelse(lead(surv.combined.chart$surv.surv)==0,x.axis.max,lead(surv.combined.chart$surv.surv))
+          # Generate end of axis events to keep graphics going until the end of chart
+            surv.combined.chart.extra <- surv.combined.chart
+            surv.combined.chart.extra$surv.surv <- 0
+            surv.combined.chart.extra$surv.time <- x.axis.max
+            surv.combined.chart.extra <- unique(surv.combined.chart.extra)
+            surv.combined.chart.extra <- surv.combined.chart.extra[, colnames(surv.combined.chart)]
+            surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.extra)
+          # Rearrange and sort for drawing
+            surv.combined.chart <- surv.combined.chart %>%
+              arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
+          # Temporary for putting in years
+            surv.combined.chart$surv.time = surv.combined.chart$surv.time/365
+
+        }
+        # Death events
+        {
+
+          if (is.na(death.indicator)==FALSE){
+            # Generate data
+            surv.death.combined.chart <- surv.death.combined
+            # Drop any events past x axis range
+            surv.death.combined.chart <- subset(surv.death.combined.chart,surv.death.combined.chart$surv.time<=x.axis.max)
+            # Drop out duplicate boxes (due to censoring) to reduce drawing time
+            surv.death.combined.chart <- surv.death.combined.chart %>%
+              arrange(group.factor,start.stage.factor,end.stage.factor,surv.time) %>%
+              group_by(surv.surv,start.stage.factor,end.stage.factor,group.factor) %>%
+              slice(c(n()))
+            # Generate beginning of axis events to keep graphics going until the end of chart
+            surv.death.combined.chart.extra <- surv.death.combined.chart
+            surv.death.combined.chart.extra$surv.surv <- 0
+            surv.death.combined.chart.extra$surv.time <- 0
+            surv.death.combined.chart.extra <- unique(surv.death.combined.chart.extra)
+            surv.death.combined.chart.extra <- surv.death.combined.chart.extra[, colnames(surv.death.combined.chart)]
+            surv.death.combined.chart <- rbind(surv.death.combined.chart,surv.death.combined.chart.extra)
+            # Rearrange and sort for drawing
+            surv.death.combined.chart <- surv.death.combined.chart %>%
+              arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
+            # Generate end of axis events to keep graphics going until the end of chart
+            surv.death.combined.chart.extra <- surv.death.combined.chart
+            surv.death.combined.chart.extra$surv.surv <- 0
+            surv.death.combined.chart.extra$surv.time <- x.axis.max
+            surv.death.combined.chart.extra <- unique(surv.death.combined.chart.extra)
+            surv.death.combined.chart.extra <- surv.death.combined.chart.extra[, colnames(surv.death.combined.chart)]
+            surv.death.combined.chart <- rbind(surv.death.combined.chart,surv.death.combined.chart.extra)
+            # Rearrange and sort for drawing
+            surv.death.combined.chart <- surv.death.combined.chart %>%
+              arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
+            # Temporary for putting in years
+            surv.death.combined.chart$surv.time = surv.death.combined.chart$surv.time/365
+
+
+
+          }
+
+
+        }
 
       }
       # Generate chart
+      {
         chart <- ggplot(data=surv.combined.chart) +
           geom_rect(aes(xmin=surv.time,xmax=lead(surv.time),ymin=0,ymax=surv.surv,fill=end.stage.factor),alpha=1) +
+          #geom_polygon(aes(x=surv.time,y=surv.surv,fill=end.stage.factor),alpha=1) +
           scale_fill_manual(values=main.line.colors) +
           geom_step(aes(x=surv.time,y=surv.surv,color=end.stage.factor)) +
           theme_bw() %+replace%
@@ -432,9 +532,11 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             geom_step(data=surv.death.combined.chart,aes(x=surv.time,y=1-surv.surv)) +
             geom_rect(data=surv.death.combined.chart,aes(xmin=surv.time,xmax=lead(surv.time),ymin=1-surv.surv,ymax=1),alpha=1,fill="indianred1")
         }
-  }
-  else {
-    chart = FALSE
+      }
+    }
+    else {
+      chart = FALSE
+    }
   }
   # Generate between-group statistical tests
   {
@@ -442,13 +544,28 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
     if (length(groups.order)>1){
       # Generate tests function
         generate.surv.diff <- function(init.stage){
-          chart.time <- as.integer(events.wide[[paste("time.stage.",(init.stage),".to.",(init.stage+1),sep="")]])
-          chart.event <- as.integer(!events.wide[[paste("censorship.stage.",(init.stage),".to.",(init.stage+1),sep="")]])
-          groups <- ordered(events.wide$group,labels=groups.order,levels=groups.order)
-          test.name <- paste0("curve.het.stage.",(init.stage),"to",(init.stage+1))
-          surv.diff <- list(survdiff(Surv(time = chart.time, event = chart.event) ~ groups))
-          names(surv.diff)[1] <- test.name
-          surv.diff
+          # Generate internal data
+            if (anyNA(groups.date.breaks)==FALSE){
+              #events.wide.test <- events.wide[0,]
+              generate.date.break.data <- function(stage.index,group.index){
+                df.output <- events.wide[events.wide[[paste0("date.stage.",stage.index,".group")]]==groups.order[group.index],]
+                df.output$group <- groups.order[group.index]
+                return(df.output)
+              }
+              events.wide.test <- do.call("rbind",
+                                   lapply(1:length(groups.order),function(x) generate.date.break.data(init.stage,x)))
+            } else {
+              events.wide.test <- events.wide
+            }
+          # Perform test
+            chart.time <- as.integer(events.wide.test[[paste("time.stage.",(init.stage),".to.",(init.stage+1),sep="")]])
+            chart.event <- as.integer(!events.wide.test[[paste("censorship.stage.",(init.stage),".to.",(init.stage+1),sep="")]])
+            groups <- ordered(events.wide.test$group,labels=groups.order,levels=groups.order)
+            test.name <- paste0("curve.het.stage.",(init.stage),"to",(init.stage+1))
+            surv.diff <- list(survdiff(Surv(time = chart.time, event = chart.event) ~ groups))
+            names(surv.diff)[1] <- test.name
+          # Return results
+            return(surv.diff)
         }
       # Package tests
         surv.diffs.combined <- do.call("list",
@@ -460,10 +577,23 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
     if (length(groups.order)>1){
       # Function to take two groups ad output Cox PH regression stats
         gen.cox.ph <- function(init.stage,reference.group){
+          # Generate internal data
+            if (anyNA(groups.date.breaks)==FALSE){
+              #events.wide.test <- events.wide[0,]
+              generate.date.break.data <- function(stage.index,group.index){
+                df.output <- events.wide[events.wide[[paste0("date.stage.",stage.index,".group")]]==groups.order[group.index],]
+                df.output$group <- groups.order[group.index]
+                return(df.output)
+              }
+              events.wide.test <- do.call("rbind",
+                                   lapply(1:length(groups.order),function(x) generate.date.break.data(init.stage,x)))
+            } else {
+              events.wide.test <- events.wide
+            }
           # Keep only relevent variables for internal manipulation
             time.var <- paste("time.stage.",(init.stage),".to.",(init.stage+1),sep="")
             events.var <- paste("censorship.stage.",(init.stage),".to.",(init.stage+1),sep="")
-            events.wide.internal <- events.wide[c("group",time.var,events.var)]
+            events.wide.internal <- events.wide.test[c("group",time.var,events.var)]
             colnames(events.wide.internal) <- c("group","time","event")
           # Designate reference vs. comparator groups
             #group.order.internal <- c(reference.group,groups.order[groups.order!=reference.group])
@@ -494,7 +624,7 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
         }
         cox.ph.combined <- gen.cox.ph.stages()
     }
-        
+
   }
   # Prepare export data
   {
