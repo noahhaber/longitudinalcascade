@@ -89,6 +89,11 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
         events.long <- subset( events.long, select = -stage )
         events.long <- events.long[order(events.long$stage.number),]
         events.long$stage.index <- NULL
+      # Generate a single "group" if groups are not specified
+        if (anyNA(groups.order)) {
+          events.long$group <- "All observations"
+          groups.order <- c("All observations")
+        } else{}
       # Generate separated wide list of stage events
         events.wide <- events.long %>%
           spread(stage.number, date)
@@ -96,36 +101,30 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
         names(events.wide) <- gsub("stage.", "date.stage.",names(events.wide))
     }
     # Generate and adjust groupings, based on user inputs
-    {
-      # Generate a single "group" if groups are not specified
-        if (anyNA(groups.order)) {
-          events.long$group <- "All observations"
-          groups.order <- c("All observations")
-        } else{}
-      # Generate time-based groups if time breaks are specified
-        if (anyNA(groups.date.breaks)==FALSE){
-          # Generate group names from breaks
-            groups.order <- c(paste0(as.character(groups.date.breaks[1])," to ",as.character(groups.date.breaks[2]-1)))
-            for (i in 2:(length(groups.date.breaks)-1)){
-              groups.order <- c(groups.order,paste0(as.character(groups.date.breaks[i])," to ",as.character(groups.date.breaks[i+1]-1)))
-            }
-          # Generate grouping for each event except the last to determine whether the start event is within time breaks
-            for (stage.index in 1:(length(stages.order)-1)){
-              events.wide[[paste0("date.stage.",stage.index,".group")]] <- NA
-              for (break.index in 1:(length(groups.date.breaks)-1)){
-                events.wide[[paste0("date.stage.",stage.index,".group")]] <- ifelse(
-                  (events.wide[[paste0("date.stage.",stage.index)]] >= groups.date.breaks[break.index]) & (events.wide[[paste0("date.stage.",stage.index)]] < groups.date.breaks[break.index+1]),
-                  groups.order[break.index],
-                  events.wide[[paste0("date.stage.",stage.index,".group")]])
-                  #events.wide[[paste0("date.stage.group.",group.index)]])
-              }
+
+    # Generate time-based groups if time breaks are specified
+      if (anyNA(groups.date.breaks)==FALSE){
+        # Generate group names from breaks
+          groups.order <- c(paste0(as.character(groups.date.breaks[1])," to ",as.character(groups.date.breaks[2]-1)))
+          for (i in 2:(length(groups.date.breaks)-1)){
+            groups.order <- c(groups.order,paste0(as.character(groups.date.breaks[i])," to ",as.character(groups.date.breaks[i+1]-1)))
+          }
+        # Generate grouping for each event except the last to determine whether the start event is within time breaks
+          for (stage.index in 1:(length(stages.order)-1)){
+            events.wide[[paste0("date.stage.",stage.index,".group")]] <- NA
+            for (break.index in 1:(length(groups.date.breaks)-1)){
               events.wide[[paste0("date.stage.",stage.index,".group")]] <- ifelse(
-                is.na(events.wide[[paste0("date.stage.",stage.index,".group")]]),
-                "No group membership",
+                (events.wide[[paste0("date.stage.",stage.index)]] >= groups.date.breaks[break.index]) & (events.wide[[paste0("date.stage.",stage.index)]] < groups.date.breaks[break.index+1]),
+                groups.order[break.index],
                 events.wide[[paste0("date.stage.",stage.index,".group")]])
+                #events.wide[[paste0("date.stage.group.",group.index)]])
             }
-        } else{}
-    }
+            events.wide[[paste0("date.stage.",stage.index,".group")]] <- ifelse(
+              is.na(events.wide[[paste0("date.stage.",stage.index,".group")]]),
+              "No group membership",
+              events.wide[[paste0("date.stage.",stage.index,".group")]])
+          }
+      } else{}
     # Fix ordering, so that completion of a later stage indicates completion of earlier stage, and mark where this happens
     {
       for (stage.index in seq(length(stages.order)-1,1,-1)){
