@@ -100,8 +100,6 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
       # Replace names with "date"
         names(events.wide) <- gsub("stage.", "date.stage.",names(events.wide))
     }
-    # Generate and adjust groupings, based on user inputs
-
     # Generate time-based groups if time breaks are specified
       if (anyNA(groups.date.breaks)==FALSE){
         # Generate group names from breaks
