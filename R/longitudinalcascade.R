@@ -431,32 +431,43 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
         {
           # Generate data
             surv.combined.chart <- surv.combined
-          # Drop any events past x axis range
+          # Drop any events past x axis range to speed up calcs
             surv.combined.chart <- subset(surv.combined.chart,surv.combined.chart$surv.time<=x.axis.max)
           # Drop out duplicate boxes (due to censoring) to reduce drawing time
             surv.combined.chart <- surv.combined.chart %>%
               arrange(group.factor,start.stage.factor,end.stage.factor,surv.time) %>%
               group_by(surv.surv,start.stage.factor,end.stage.factor,group.factor) %>%
               slice(c(n()))
-          # Generate beginning of axis events to keep graphics going until the end of chart
-            surv.combined.chart.extra <- surv.combined.chart
-            surv.combined.chart.extra$surv.surv <- 0
-            surv.combined.chart.extra$surv.time <- 0
-            surv.combined.chart.extra <- unique(surv.combined.chart.extra)
-            surv.combined.chart.extra <- surv.combined.chart.extra[, colnames(surv.combined.chart)]
-            surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.extra)
+          # Generate beginning axis events to keep fill graphics going from start of chart at 0
+            surv.combined.chart.beginning <- surv.combined.chart
+            surv.combined.chart.beginning$surv.surv <- 0
+            surv.combined.chart.beginning$surv.time <- -1
+            surv.combined.chart.beginning$surv.surv.LB <- 0
+            surv.combined.chart.beginning$surv.surv.UB <- 0
+            surv.combined.chart.beginning$surv.n <- 0
+            surv.combined.chart.beginning <- unique(surv.combined.chart.beginning)
+            surv.combined.chart.beginning <- surv.combined.chart.beginning[, colnames(surv.combined.chart)]
+            surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.beginning)
             # Rearrange and sort for drawing
-            surv.combined.chart <- surv.combined.chart %>%
-              arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
+              surv.combined.chart <- surv.combined.chart %>%
+                arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
+          # Generate end of exis events to keep fill graphics going to end of chart
+            surv.combined.chart.end <- surv.combined.chart %>%
+              group_by(start.stage.index,end.stage.index,group.index) %>%
+              slice(which.max(surv.surv))
+            surv.combined.chart.end$surv.time <- x.axis.max + 1
+            surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.end)
+            surv.combined.chart.end$surv.surv <- 0
+            surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.end)
           # Generate rectangle ends for drawing shading
             #surv.combined.chart$rect.end <- ifelse(lead(surv.combined.chart$surv.surv)==0,x.axis.max,lead(surv.combined.chart$surv.surv))
           # Generate end of axis events to keep graphics going until the end of chart
-            surv.combined.chart.extra <- surv.combined.chart
-            surv.combined.chart.extra$surv.surv <- 0
-            surv.combined.chart.extra$surv.time <- x.axis.max
-            surv.combined.chart.extra <- unique(surv.combined.chart.extra)
-            surv.combined.chart.extra <- surv.combined.chart.extra[, colnames(surv.combined.chart)]
-            surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.extra)
+            # surv.combined.chart.extra <- surv.combined.chart
+            # surv.combined.chart.extra$surv.surv <- 0
+            # surv.combined.chart.extra$surv.time <- x.axis.max
+            # surv.combined.chart.extra <- unique(surv.combined.chart.extra)
+            # surv.combined.chart.extra <- surv.combined.chart.extra[, colnames(surv.combined.chart)]
+            # surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.extra)
           # Rearrange and sort for drawing
             surv.combined.chart <- surv.combined.chart %>%
               arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
@@ -468,44 +479,45 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
         {
           if (is.na(death.indicator)==FALSE){
             # Generate data
-            surv.death.combined.chart <- surv.death.combined
+              surv.death.combined.chart <- surv.death.combined
             # Drop any events past x axis range
-            surv.death.combined.chart <- subset(surv.death.combined.chart,surv.death.combined.chart$surv.time<=x.axis.max)
+              surv.death.combined.chart <- subset(surv.death.combined.chart,surv.death.combined.chart$surv.time<=x.axis.max)
             # Drop out duplicate boxes (due to censoring) to reduce drawing time
-            surv.death.combined.chart <- surv.death.combined.chart %>%
-              arrange(group.factor,start.stage.factor,end.stage.factor,surv.time) %>%
-              group_by(surv.surv,start.stage.factor,end.stage.factor,group.factor) %>%
-              slice(c(n()))
+              surv.death.combined.chart <- surv.death.combined.chart %>%
+                arrange(group.factor,start.stage.factor,end.stage.factor,surv.time) %>%
+                group_by(surv.surv,start.stage.factor,end.stage.factor,group.factor) %>%
+                slice(c(n()))
             # Generate beginning of axis events to keep graphics going until the end of chart
-            surv.death.combined.chart.extra <- surv.death.combined.chart
-            surv.death.combined.chart.extra$surv.surv <- 0
-            surv.death.combined.chart.extra$surv.time <- 0
-            surv.death.combined.chart.extra <- unique(surv.death.combined.chart.extra)
-            surv.death.combined.chart.extra <- surv.death.combined.chart.extra[, colnames(surv.death.combined.chart)]
-            surv.death.combined.chart <- rbind(surv.death.combined.chart,surv.death.combined.chart.extra)
+              surv.death.combined.chart.extra <- surv.death.combined.chart
+              surv.death.combined.chart.extra$surv.surv <- 0
+              surv.death.combined.chart.extra$surv.time <- 0
+              surv.death.combined.chart.extra <- unique(surv.death.combined.chart.extra)
+              surv.death.combined.chart.extra <- surv.death.combined.chart.extra[, colnames(surv.death.combined.chart)]
+              surv.death.combined.chart <- rbind(surv.death.combined.chart,surv.death.combined.chart.extra)
             # Rearrange and sort for drawing
-            surv.death.combined.chart <- surv.death.combined.chart %>%
-              arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
+              surv.death.combined.chart <- surv.death.combined.chart %>%
+                arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
             # Generate end of axis events to keep graphics going until the end of chart
-            surv.death.combined.chart.extra <- surv.death.combined.chart
-            surv.death.combined.chart.extra$surv.surv <- 0
-            surv.death.combined.chart.extra$surv.time <- x.axis.max
-            surv.death.combined.chart.extra <- unique(surv.death.combined.chart.extra)
-            surv.death.combined.chart.extra <- surv.death.combined.chart.extra[, colnames(surv.death.combined.chart)]
-            surv.death.combined.chart <- rbind(surv.death.combined.chart,surv.death.combined.chart.extra)
+              surv.death.combined.chart.extra <- surv.death.combined.chart
+              surv.death.combined.chart.extra$surv.surv <- 0
+              surv.death.combined.chart.extra$surv.time <- x.axis.max
+              surv.death.combined.chart.extra <- unique(surv.death.combined.chart.extra)
+              surv.death.combined.chart.extra <- surv.death.combined.chart.extra[, colnames(surv.death.combined.chart)]
+              surv.death.combined.chart <- rbind(surv.death.combined.chart,surv.death.combined.chart.extra)
             # Rearrange and sort for drawing
-            surv.death.combined.chart <- surv.death.combined.chart %>%
-              arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
+              surv.death.combined.chart <- surv.death.combined.chart %>%
+                arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
             # Temporary for putting in years
-            surv.death.combined.chart$surv.time = surv.death.combined.chart$surv.time/365
+              surv.death.combined.chart$surv.time = surv.death.combined.chart$surv.time/365
           }
         }
       }
       # Generate chart
       {
         chart <- ggplot(data=surv.combined.chart) +
-          geom_rect(aes(xmin=surv.time,xmax=lead(surv.time),ymin=0,ymax=surv.surv,fill=end.stage.factor),alpha=1) +
-          #geom_polygon(aes(x=surv.time,y=surv.surv,fill=end.stage.factor),alpha=1) +
+          #geom_rect(aes(xmin=surv.time,xmax=lead(surv.time),ymin=0,ymax=surv.surv,fill=end.stage.factor),alpha=1) +
+          #geom_rect(aes(xmin=surv.time,xmax=surv.time,ymin=0,ymax=surv.surv,fill=end.stage.factor),alpha=1) +
+          geom_polygon(aes(x=surv.time,y=surv.surv,fill=end.stage.factor),alpha=1) +
           scale_fill_manual(values=main.fill.colors) +
           geom_step(aes(x=surv.time,y=surv.surv,color=end.stage.factor)) +
           theme_bw() %+replace%
@@ -519,9 +531,6 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             strip.text = element_text(size = 12,hjust=0),
             panel.spacing = unit(1, "lines")
           ) +
-          #scale_x_continuous(limits = (x.axis.range/365),expand = c(0, 0),
-          #                   labels=x.scale.function,
-          #                   breaks = c(0,round2(x.axis.range/365,0))) +
           scale_x_continuous(expand = c(0, 0),
                             labels=x.scale.function,
                             breaks = c(0,round2(x.axis.range/365,0))) +
@@ -536,8 +545,10 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
       # Add death event if present
         if (is.na(death.indicator)==FALSE){
           chart <- chart +
-            geom_step(data=surv.death.combined.chart,aes(x=surv.time,y=1-surv.surv)) +
-            geom_rect(data=surv.death.combined.chart,aes(xmin=surv.time,xmax=lead(surv.time),ymin=1-surv.surv,ymax=1),alpha=1,fill=death.fill.color)
+            geom_polygon(data=surv.death.combined.chart,aes(x=surv.time,y=1-surv.surv),alpha=1,fill=death.fill.color) + 
+            geom_step(data=surv.death.combined.chart,aes(x=surv.time,y=1-surv.surv))
+            #geom_rect(data=surv.death.combined.chart,aes(xmin=surv.time,xmax=lead(surv.time),ymin=1-surv.surv,ymax=1),alpha=1,fill=death.fill.color)
+            
         }
       }
     }
