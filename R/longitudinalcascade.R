@@ -278,7 +278,6 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
       {
         # Function to generate survival data for a single curve
           gen.survival.data <- function(start.stage.index,end.stage.index,group.index){
-
           # Select data
             if (allow.skips==TRUE){
               if (anyNA(groups.date.breaks)==TRUE){
@@ -467,7 +466,6 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
         }
         # Death events
         {
-
           if (is.na(death.indicator)==FALSE){
             # Generate data
             surv.death.combined.chart <- surv.death.combined
@@ -500,14 +498,8 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
               arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
             # Temporary for putting in years
             surv.death.combined.chart$surv.time = surv.death.combined.chart$surv.time/365
-
-
-
           }
-
-
         }
-
       }
       # Generate chart
       {
@@ -527,11 +519,15 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             strip.text = element_text(size = 12,hjust=0),
             panel.spacing = unit(1, "lines")
           ) +
-          scale_x_continuous(limits = (x.axis.range/365),expand = c(0, 0),
-                             labels=x.scale.function,
-                             breaks = c(0,round2(x.axis.range/365,0))) +
+          #scale_x_continuous(limits = (x.axis.range/365),expand = c(0, 0),
+          #                   labels=x.scale.function,
+          #                   breaks = c(0,round2(x.axis.range/365,0))) +
+          scale_x_continuous(expand = c(0, 0),
+                            labels=x.scale.function,
+                            breaks = c(0,round2(x.axis.range/365,0))) +
+          coord_cartesian(xlim=c(0,(x.axis.range/365)),ylim = c(0, 1)) +
           xlab("Time (years) from start of stage") +
-          scale_y_continuous(limits = c(0, 1),expand = c(0, 0),labels=percent) +
+          scale_y_continuous(expand = c(0, 0),labels=percent) +
           scale_color_manual(values=c(rep("black",length(stages.order)-1))) +
           facet_grid(group.factor ~ start.stage.factor,
                      switch="y") +
