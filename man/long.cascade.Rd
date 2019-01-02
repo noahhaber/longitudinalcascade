@@ -82,9 +82,6 @@ df.events.long <- long.cascade.sim$events.long
 df.events.wide <- long.cascade.sim$events.wide
 
 }
-\author{
-Noah Haber, \email{noahhaber@gmail.com}
-}
 \keyword{cascade}
 \keyword{longitudinal}
 \keyword{survival}
