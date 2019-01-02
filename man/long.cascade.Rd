@@ -2,7 +2,7 @@
 % Please edit documentation in R/longitudinalcascade.R
 \name{long.cascade}
 \alias{long.cascade}
-\title{Longitudinal cascade generator}
+\title{Longitudinal cascade statistics and charts}
 \usage{
 long.cascade(events.long, stages.order, groups.order = NA,
   death.indicator = NA, censorship.indicator = NA,
@@ -81,6 +81,9 @@ df.events.long <- long.cascade.sim$events.long
 # Output generated wide-formatted list of events
 df.events.wide <- long.cascade.sim$events.wide
 
+}
+\author{
+Noah Haber, \email{noahhaber@gmail.com}
 }
 \keyword{cascade}
 \keyword{longitudinal}

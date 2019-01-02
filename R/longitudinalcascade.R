@@ -1,5 +1,7 @@
 #' This package generates a longitudinal casade, including a graphical representation. This takes a long-formatted list of stage-by-stage events and transforms it into a longitudinal cascade, correcting the orders of events.
-#' @title Longitudinal cascade generator
+#' @title Longitudinal cascade statistics and charts
+#' @author Noah Haber, \email{noahhaber@@gmail.com}
+#' @version 1.0
 #' @keywords cascade longitudinal survival
 #' @param events.long (required) The main dataframe input parameter. The data frame needs at least the following fields:
 #' "ID": (required) A string-based individual identifier, indicating every person in the dataset.
