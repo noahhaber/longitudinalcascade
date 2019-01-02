@@ -6,8 +6,8 @@
 \usage{
 long.cascade(events.long, stages.order, groups.order = NA,
   death.indicator = NA, censorship.indicator = NA,
-  interstage.event.indicator = NA, allow.sub.lines = FALSE,
-  allow.skips = FALSE, groups.date.breaks = NA, x.axis.max = 365,
+  allow.sub.lines = FALSE, allow.skips = FALSE,
+  groups.date.breaks = NA, x.axis.max = 365,
   main.fill.colors = "#4472C4", death.fill.color = "indianred1",
   nochart = FALSE)
 }
@@ -26,8 +26,6 @@ long.cascade(events.long, stages.order, groups.order = NA,
 
 \item{censorship.indicator}{(optional) This parameter is the string which indicates a right-censorship event. Most commonly, this will indicate permanent loss to follow up and/or end of data collection.}
 
-\item{interstage.event.indicator}{(optional) (To be implemented) This is the string pertaining to an interstage event, such as clinic visits, whichc do not trigger stage completion. The cumulative number of these are shown as striations on the charts above the main event curve, corresponding to the proportion of individuals who have had X number of interstage events from the time of stage start to end, who have not yet transitioned into the next stage nor died.}
-
 \item{allow.sub.lines}{Sub-lines indicate subsequent transitions across the cascade. If TRUE, the main chart will show transitions to all possible subsequent events. For example, if there are 4 stages (1-4), the leftmost chart will show each transition from 1-2, 1-3, and 1-4, while the next chart will show 2-3 and 2-4, and the last chart will show only 3-4. If FALSE, the charts will only show transition to the subsequent stage.}
 
 \item{allow.skips}{(To be replaced with additional options) This option shows "skips" across the cascade in each chart, as indicated by the y intercept. If FALSE, each stage will start only with people who have not moved on to a subsequent stage, i.e. the y intercept will always be 0. If TRUE, an individual can enter into a stage even if they have "skipped" it. For example, an individual may go straight from stage 1 to stage 3, skipping 2. If this indicator is FALSE, the stage transition chart from 2-3 will not contain this individual in the denomenator. If TRUE, this individual will be counted in the denomenator for this transition, but will be counted as having transitioned into stage 3 immediately upon entering stage 2.}
@@ -42,8 +40,6 @@ long.cascade(events.long, stages.order, groups.order = NA,
 
 \item{nochart}{Setting this to TRUE prevents the function from generating the main chart.}
 
-\item{interstage.status.indicator}{(optional) (To be implemented) This is an altnernative to the interstage.event.indicator, where the user may define their own status indicator.}
-
 \item{group.labels}{(optional) (to be implemented) This replaces the y axis labels on the chart. Must be the same length as the number of groups.}
 
 \item{stage.labels}{(optional) (to be implemented) This replaces the x axis labels on the chart. Must be the same length as the number of transitions (i.e. the number of stages minus 1)}
@@ -54,10 +50,11 @@ This package generates a longitudinal casade, including a graphical representati
 \examples{
 # Pull in data from example simulated dataset
 library(longitudinalcascade)
-data(events.long_cascade_sim)
+data(events_long_cascade_sim)
 
 # Set up options
-stages.order <- c("First tested positive","Knows status","Linked to care","Eligible for ART","Initiated ART","Therapeutic response")
+stages.order <- c("First tested positive","Knows status","Linked to care","Eligible for ART",
+"Initiated ART","Therapeutic response")
 groups.order <- c("Group 1","Group 2","Group 3")
 death.indicator <- "Death"
 retention.indicator <- "Clinic visit"
@@ -66,7 +63,7 @@ allow.sub.lines <- TRUE
 allow.skips <- TRUE
 
 # Create cascade object
-long.cascade.sim <- long.cascade(events.long,stages.order=stages.order,groups.order=groups.order,
+long.cascade.sim <- long.cascade(events_long,stages.order=stages.order,groups.order=groups.order,
 death.indicator=death.indicator,censorship.indicator=censorship.indicator,
 allow.sub.lines=allow.sub.lines,allow.skips=allow.skips)
 

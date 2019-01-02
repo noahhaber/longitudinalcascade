@@ -12,8 +12,6 @@
 #' @param groups.date.breaks (optional) If groups.date.breaks is filled in, the grouping will be defined by date range of entry event for each transition, rather than groups of individuals. Each transition will independently determine its own groups, based on the time in which the entrance event occurs. Times are determined by a vector of date breaks. Each group is defined as starting from a given date break value and continuing until it reaches the subsequent date break, not including data from that ending break value. For example, setting the break values to be January 1, 2011, January 1, 2012, and January 1, 2013 will create two groups. The first group will take individuals who entered each stage from January 1, 2011 to Dec 31, 2011, and the second will take individuals who entered into the stage from January 1, 2012 to Dec 31, 2012.
 #' @param death.indicator (optional) This parameter is the string which indicates a death event in the dataset. If specified, between-stage mortality will be estimated and shown as a KM curve on the top of the chart(s). If left blank, death events will not be estimated.
 #' @param censorship.indicator (optional) This parameter is the string which indicates a right-censorship event. Most commonly, this will indicate permanent loss to follow up and/or end of data collection.
-#' @param interstage.event.indicator (optional) (To be implemented) This is the string pertaining to an interstage event, such as clinic visits, whichc do not trigger stage completion. The cumulative number of these are shown as striations on the charts above the main event curve, corresponding to the proportion of individuals who have had X number of interstage events from the time of stage start to end, who have not yet transitioned into the next stage nor died.
-#' @param interstage.status.indicator (optional) (To be implemented) This is an altnernative to the interstage.event.indicator, where the user may define their own status indicator.
 #' @param allow.sub.lines Sub-lines indicate subsequent transitions across the cascade. If TRUE, the main chart will show transitions to all possible subsequent events. For example, if there are 4 stages (1-4), the leftmost chart will show each transition from 1-2, 1-3, and 1-4, while the next chart will show 2-3 and 2-4, and the last chart will show only 3-4. If FALSE, the charts will only show transition to the subsequent stage.
 #' @param allow.skips (To be replaced with additional options) This option shows "skips" across the cascade in each chart, as indicated by the y intercept. If FALSE, each stage will start only with people who have not moved on to a subsequent stage, i.e. the y intercept will always be 0. If TRUE, an individual can enter into a stage even if they have "skipped" it. For example, an individual may go straight from stage 1 to stage 3, skipping 2. If this indicator is FALSE, the stage transition chart from 2-3 will not contain this individual in the denomenator. If TRUE, this individual will be counted in the denomenator for this transition, but will be counted as having transitioned into stage 3 immediately upon entering stage 2.
 #' @param x.axis.max This option shows the maximum range of the x axis in days. Defaults to 365 days (1 year).
@@ -32,10 +30,11 @@
 #' @examples
 #' # Pull in data from example simulated dataset
 #' library(longitudinalcascade)
-#' data(events.long_cascade_sim)
+#' data(events_long_cascade_sim)
 #'
 #' # Set up options
-#' stages.order <- c("First tested positive","Knows status","Linked to care","Eligible for ART","Initiated ART","Therapeutic response")
+#' stages.order <- c("First tested positive","Knows status","Linked to care","Eligible for ART",
+#' "Initiated ART","Therapeutic response")
 #' groups.order <- c("Group 1","Group 2","Group 3")
 #' death.indicator <- "Death"
 #' retention.indicator <- "Clinic visit"
@@ -44,7 +43,7 @@
 #' allow.skips <- TRUE
 #'
 #' # Create cascade object
-#' long.cascade.sim <- long.cascade(events.long,stages.order=stages.order,groups.order=groups.order,
+#' long.cascade.sim <- long.cascade(events_long,stages.order=stages.order,groups.order=groups.order,
 #' death.indicator=death.indicator,censorship.indicator=censorship.indicator,
 #' allow.sub.lines=allow.sub.lines,allow.skips=allow.skips)
 #'
@@ -60,7 +59,7 @@
 #' df.events.wide <- long.cascade.sim$events.wide
 #'
 long.cascade <- function(events.long,stages.order,groups.order=NA,
-                         death.indicator=NA,censorship.indicator=NA,interstage.event.indicator=NA,
+                         death.indicator=NA,censorship.indicator=NA,
                          allow.sub.lines=FALSE,allow.skips=FALSE,
                          groups.date.breaks=NA,
                          x.axis.max=365,
