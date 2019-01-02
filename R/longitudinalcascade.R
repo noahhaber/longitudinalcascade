@@ -19,6 +19,8 @@
 #' @param nochart Setting this to TRUE prevents the function from generating the main chart.
 #' @param group.labels (optional) (to be implemented) This replaces the y axis labels on the chart. Must be the same length as the number of groups.
 #' @param stage.labels (optional) (to be implemented) This replaces the x axis labels on the chart. Must be the same length as the number of transitions (i.e. the number of stages minus 1)
+#' @param main.fill.colors (optional) This defines the color scheme of the stage transition graphs, as a string indicator for color or a c() list of colors. If the colors contain only one color, the color scheme will automatically generate progressively faded versions of the initial color provided for the remaining stage transitions. Otherwise, a list which is exactly one fewer than the # of stages must be provided, in the order of stage trasitions.
+#' @param death.fill.color (optional) This defines the color scheme for the death stage transition, as a string indicator for color.
 #' @import survival
 #' @import ggplot2
 #' @import tidyr
@@ -61,6 +63,7 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
                          allow.sub.lines=FALSE,allow.skips=FALSE,
                          groups.date.breaks=NA,
                          x.axis.max=365,
+                         main.fill.colors = "#4472C4",death.fill.color = "indianred1",
                          nochart=FALSE) {
   # Initialize function
   {
@@ -417,8 +420,11 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
           round2 <- function(x, n=0) {scale<-10^n; trunc(x*scale+sign(x)*0.5)/scale}
           x.scale.function <- function(x) round2(x,0)
           x.axis.range <- c(0,x.axis.max)
-        # Generate colors
-          main.line.colors <- color.gradient("#4472C4",(length(stages.order)-1))
+        # Generate / change colors
+          if (length(main.fill.colors)==1){
+            main.fill.colors <- color.gradient(main.fill.colors,(length(stages.order)-1))
+          } else {}
+          
       }
       # Data manipulation
       {
@@ -508,7 +514,7 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
         chart <- ggplot(data=surv.combined.chart) +
           geom_rect(aes(xmin=surv.time,xmax=lead(surv.time),ymin=0,ymax=surv.surv,fill=end.stage.factor),alpha=1) +
           #geom_polygon(aes(x=surv.time,y=surv.surv,fill=end.stage.factor),alpha=1) +
-          scale_fill_manual(values=main.line.colors) +
+          scale_fill_manual(values=main.fill.colors) +
           geom_step(aes(x=surv.time,y=surv.surv,color=end.stage.factor)) +
           theme_bw() %+replace%
           theme(
@@ -535,7 +541,7 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
         if (is.na(death.indicator)==FALSE){
           chart <- chart +
             geom_step(data=surv.death.combined.chart,aes(x=surv.time,y=1-surv.surv)) +
-            geom_rect(data=surv.death.combined.chart,aes(xmin=surv.time,xmax=lead(surv.time),ymin=1-surv.surv,ymax=1),alpha=1,fill="indianred1")
+            geom_rect(data=surv.death.combined.chart,aes(xmin=surv.time,xmax=lead(surv.time),ymin=1-surv.surv,ymax=1),alpha=1,fill=death.fill.color)
         }
       }
     }
