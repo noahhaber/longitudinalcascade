@@ -1,6 +1,6 @@
 #' This package generates a longitudinal casade, including a graphical representation. This takes a long-formatted list of stage-by-stage events and transforms it into a longitudinal cascade, correcting the orders of events.
 #' @title Longitudinal cascade statistics and charts
-
+#' @name longitudinalcascade
 #' @keywords cascade longitudinal survival
 #' @param events.long (required) The main dataframe input parameter. The data frame needs at least the following fields:
 #' "ID": (required) A string-based individual identifier, indicating every person in the dataset.
@@ -16,17 +16,12 @@
 #' @param allow.skips (To be replaced with additional options) This option shows "skips" across the cascade in each chart, as indicated by the y intercept. If FALSE, each stage will start only with people who have not moved on to a subsequent stage, i.e. the y intercept will always be 0. If TRUE, an individual can enter into a stage even if they have "skipped" it. For example, an individual may go straight from stage 1 to stage 3, skipping 2. If this indicator is FALSE, the stage transition chart from 2-3 will not contain this individual in the denomenator. If TRUE, this individual will be counted in the denomenator for this transition, but will be counted as having transitioned into stage 3 immediately upon entering stage 2.
 #' @param x.axis.max This option shows the maximum range of the x axis in days. Defaults to 365 days (1 year).
 #' @param nochart Setting this to TRUE prevents the function from generating the main chart.
-#' @param group.labels (optional) (to be implemented) This replaces the y axis labels on the chart. Must be the same length as the number of groups.
-#' @param stage.labels (optional) (to be implemented) This replaces the x axis labels on the chart. Must be the same length as the number of transitions (i.e. the number of stages minus 1)
 #' @param main.fill.colors (optional) This defines the color scheme of the stage transition graphs, as a string indicator for color or a c() list of colors. If the colors contain only one color, the color scheme will automatically generate progressively faded versions of the initial color provided for the remaining stage transitions. Otherwise, a list which is exactly one fewer than the # of stages must be provided, in the order of stage trasitions.
 #' @param death.fill.color (optional) This defines the color scheme for the death stage transition, as a string indicator for color.
-#' @import survival
-#' @import ggplot2
-#' @import tidyr
-#' @import dplyr
-#' @import zoo
-#' @import scales
+#' @import survival ggplot2 dplyr tidyr zoo scales grDevices
 #' @export
+#' @references Haber et al. (2017) Lancet HIV 4(5):e223-e230
+#' (\href{https://www.ncbi.nlm.nih.gov/pubmed/28153470}{PubMed})
 #' @examples
 #' # Pull in data from example simulated dataset
 #' library(longitudinalcascade)
@@ -43,41 +38,29 @@
 #' allow.skips <- TRUE
 #'
 #' # Create cascade object
-#' long.cascade.sim <- long.cascade(events_long,stages.order=stages.order,groups.order=groups.order,
-#' death.indicator=death.indicator,censorship.indicator=censorship.indicator,
+#' longitudinalcascade.sim <- longitudinalcascade(events_long,stages.order=stages.order,
+#' groups.order=groups.order,death.indicator=death.indicator,
+#' censorship.indicator=censorship.indicator,
 #' allow.sub.lines=allow.sub.lines,allow.skips=allow.skips)
 #'
 #' # Print/output main chart
-#' long.cascade.sim$chart
+#' longitudinalcascade.sim$chart
 #' # Output full survival dataset generated, as a data frame
-#' df.long.cascade.survival <- long.cascade.sim$surv.dataset
+#' df.longitudainalcascade.survival <- longitudinalcascade.sim$surv.dataset
 #' # Output heterogeneity test
-#' long.cascade.sim$surv.diffs
+#' longitudinalcascade.sim$surv.diffs
 #' # Output original long-formatted list of events
-#' df.events.long <- long.cascade.sim$events.long
+#' df.events.long <- longitudinalcascade.sim$events.long
 #' # Output generated wide-formatted list of events
-#' df.events.wide <- long.cascade.sim$events.wide
-#'
-long.cascade <- function(events.long,stages.order,groups.order=NA,
+#' df.events.wide <- longitudinalcascade.sim$events.wide
+
+longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
                          death.indicator=NA,censorship.indicator=NA,
                          allow.sub.lines=FALSE,allow.skips=FALSE,
                          groups.date.breaks=NA,
                          x.axis.max=365,
                          main.fill.colors = "#4472C4",death.fill.color = "indianred1",
                          nochart=FALSE) {
-  # Initialize function
-  {
-    # Packages
-    {
-      require(survival)
-      require(ggplot2)
-      require(tidyr)
-      require(dplyr)
-      require(zoo)
-      require(scales)
-    }
-
-  }
   # Data manipulation
   {
     # Transform data into wide form
@@ -99,12 +82,10 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
         } else{}
       # Generate separated wide list of stage events
         events.wide <- events.long %>%
-          spread(stage.number, date)
+          tidyr::spread(stage.number, date)
       # Replace names with "date"
         names(events.wide) <- gsub("stage.", "date.stage.",names(events.wide))
     }
-    # Generate and adjust groupings, based on user inputs
-
     # Generate time-based groups if time breaks are specified
       if (anyNA(groups.date.breaks)==FALSE){
         # Generate group names from breaks
@@ -306,7 +287,7 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             chart.time <- as.integer(events.wide[[paste("time.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events.wide$selection==TRUE])
             chart.event <- as.integer(!events.wide[[paste("censorship.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events.wide$selection==TRUE])
           # Generate survival data
-            chart.surv <- survfit(Surv(time = chart.time, event = chart.event) ~ 1)
+            chart.surv <- survival::survfit(survival::Surv(time = chart.time, event = chart.event) ~ 1)
             surv.time <- chart.surv$time
             surv.surv <- 1-chart.surv$surv
             surv.surv.UB <- 1-chart.surv$lower
@@ -360,7 +341,7 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             chart.time <- as.integer(events.wide[[paste("time.death.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events.wide$selection==TRUE])
             chart.event <- as.integer(!events.wide[[paste("censorship.death.stage.",start.stage.index,".to.",end.stage.index,sep="")]][events.wide$selection==TRUE])
           # Generate survival data
-            chart.surv <- survfit(Surv(time = chart.time, event = chart.event) ~ 1)
+            chart.surv <- survival::survfit(survival::Surv(time = chart.time, event = chart.event) ~ 1)
             surv.time <- chart.surv$time
             surv.surv <- 1-chart.surv$surv
             surv.data <- data.frame(surv.time,surv.surv)
@@ -397,7 +378,7 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
         # Color gradient creator
           color.gradient <- function(original.color,number.divisions,darken=0){
             # Generate hsv color
-              hsv.color.orig <- rgb2hsv(col2rgb(original.color))
+              hsv.color.orig <- grDevices::rgb2hsv(grDevices::col2rgb(original.color))
             # Manipulate if set to lighten
               if (darken == 0) {
                 hsv.color.new <- t(matrix(c(rep(hsv.color.orig[1,1],number.divisions),
@@ -435,9 +416,9 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             surv.combined.chart <- subset(surv.combined.chart,surv.combined.chart$surv.time<=x.axis.max)
           # Drop out duplicate boxes (due to censoring) to reduce drawing time
             surv.combined.chart <- surv.combined.chart %>%
-              arrange(group.factor,start.stage.factor,end.stage.factor,surv.time) %>%
-              group_by(surv.surv,start.stage.factor,end.stage.factor,group.factor) %>%
-              slice(c(n()))
+              dplyr::arrange(group.factor,start.stage.factor,end.stage.factor,surv.time) %>%
+              dplyr::group_by(surv.surv,start.stage.factor,end.stage.factor,group.factor) %>%
+              dplyr::slice(c(n()))
           # Generate beginning axis events to keep fill graphics going from start of chart at 0
             surv.combined.chart.beginning <- surv.combined.chart
             surv.combined.chart.beginning$surv.surv <- 0
@@ -450,11 +431,11 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.beginning)
             # Rearrange and sort for drawing
               surv.combined.chart <- surv.combined.chart %>%
-                arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
+                dplyr::arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
           # Generate end of exis events to keep fill graphics going to end of chart
             surv.combined.chart.end <- surv.combined.chart %>%
-              group_by(start.stage.index,end.stage.index,group.index) %>%
-              slice(which.max(surv.surv))
+              dplyr::group_by(start.stage.index,end.stage.index,group.index) %>%
+              dplyr::slice(which.max(surv.surv))
             surv.combined.chart.end$surv.time <- x.axis.max + 1
             surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.end)
             surv.combined.chart.end$surv.surv <- 0
@@ -470,7 +451,7 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             # surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.extra)
           # Rearrange and sort for drawing
             surv.combined.chart <- surv.combined.chart %>%
-              arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
+              dplyr::arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
           # Temporary for putting in years
             surv.combined.chart$surv.time = surv.combined.chart$surv.time/365
 
@@ -484,9 +465,9 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
               surv.death.combined.chart <- subset(surv.death.combined.chart,surv.death.combined.chart$surv.time<=x.axis.max)
             # Drop out duplicate boxes (due to censoring) to reduce drawing time
               surv.death.combined.chart <- surv.death.combined.chart %>%
-                arrange(group.factor,start.stage.factor,end.stage.factor,surv.time) %>%
-                group_by(surv.surv,start.stage.factor,end.stage.factor,group.factor) %>%
-                slice(c(n()))
+                dplyr::arrange(group.factor,start.stage.factor,end.stage.factor,surv.time) %>%
+                dplyr::group_by(surv.surv,start.stage.factor,end.stage.factor,group.factor) %>%
+                dplyr::slice(c(n()))
             # Generate beginning of axis events to keep graphics going until the end of chart
               surv.death.combined.chart.extra <- surv.death.combined.chart
               surv.death.combined.chart.extra$surv.surv <- 0
@@ -496,7 +477,7 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
               surv.death.combined.chart <- rbind(surv.death.combined.chart,surv.death.combined.chart.extra)
             # Rearrange and sort for drawing
               surv.death.combined.chart <- surv.death.combined.chart %>%
-                arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
+                dplyr::arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
             # Generate end of axis events to keep graphics going until the end of chart
               surv.death.combined.chart.extra <- surv.death.combined.chart
               surv.death.combined.chart.extra$surv.surv <- 0
@@ -506,7 +487,7 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
               surv.death.combined.chart <- rbind(surv.death.combined.chart,surv.death.combined.chart.extra)
             # Rearrange and sort for drawing
               surv.death.combined.chart <- surv.death.combined.chart %>%
-                arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
+                dplyr::arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
             # Temporary for putting in years
               surv.death.combined.chart$surv.time = surv.death.combined.chart$surv.time/365
           }
@@ -514,14 +495,14 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
       }
       # Generate chart
       {
-        chart <- ggplot(data=surv.combined.chart) +
+        chart <- ggplot2::ggplot(data=surv.combined.chart) +
           #geom_rect(aes(xmin=surv.time,xmax=lead(surv.time),ymin=0,ymax=surv.surv,fill=end.stage.factor),alpha=1) +
           #geom_rect(aes(xmin=surv.time,xmax=surv.time,ymin=0,ymax=surv.surv,fill=end.stage.factor),alpha=1) +
-          geom_polygon(aes(x=surv.time,y=surv.surv,fill=end.stage.factor),alpha=1) +
-          scale_fill_manual(values=main.fill.colors) +
-          geom_step(aes(x=surv.time,y=surv.surv,color=end.stage.factor)) +
-          theme_bw() %+replace%
-          theme(
+          ggplot2::geom_polygon(aes(x=surv.time,y=surv.surv,fill=end.stage.factor),alpha=1) +
+          ggplot2::scale_fill_manual(values=main.fill.colors) +
+          ggplot2::geom_step(aes(x=surv.time,y=surv.surv,color=end.stage.factor)) +
+          ggplot2::theme_bw() %+replace%
+          ggplot2::theme(
             panel.grid = element_blank(),
             plot.margin = unit(c(.1,.1,.1,.1), "cm"),
             axis.title.y=element_blank(),
@@ -531,22 +512,22 @@ long.cascade <- function(events.long,stages.order,groups.order=NA,
             strip.text = element_text(size = 12,hjust=0),
             panel.spacing = unit(1, "lines")
           ) +
-          scale_x_continuous(expand = c(0, 0),
+          ggplot2::scale_x_continuous(expand = c(0, 0),
                             labels=x.scale.function,
                             breaks = c(0,round2(x.axis.range/365,0))) +
-          coord_cartesian(xlim=c(0,(x.axis.range/365)),ylim = c(0, 1)) +
-          xlab("Time (years) from start of stage") +
-          scale_y_continuous(expand = c(0, 0),labels=percent) +
-          scale_color_manual(values=c(rep("black",length(stages.order)-1))) +
-          facet_grid(group.factor ~ start.stage.factor,
+          ggplot2::coord_cartesian(xlim=c(0,(x.axis.range/365)),ylim = c(0, 1)) +
+          ggplot2::xlab("Time (years) from start of stage") +
+          ggplot2::scale_y_continuous(expand = c(0, 0),labels=percent) +
+          ggplot2::scale_color_manual(values=c(rep("black",length(stages.order)-1))) +
+          ggplot2::facet_grid(group.factor ~ start.stage.factor,
                      switch="y") +
-          theme(strip.background = element_blank(),
+          ggplot2::theme(strip.background = element_blank(),
                 strip.placement = "outside")
       # Add death event if present
         if (is.na(death.indicator)==FALSE){
           chart <- chart +
-            geom_polygon(data=surv.death.combined.chart,aes(x=surv.time,y=1-surv.surv),alpha=1,fill=death.fill.color) + 
-            geom_step(data=surv.death.combined.chart,aes(x=surv.time,y=1-surv.surv))
+            ggplot2::geom_polygon(data=surv.death.combined.chart,aes(x=surv.time,y=1-surv.surv),alpha=1,fill=death.fill.color) + 
+            ggplot2::geom_step(data=surv.death.combined.chart,aes(x=surv.time,y=1-surv.surv))
             #geom_rect(data=surv.death.combined.chart,aes(xmin=surv.time,xmax=lead(surv.time),ymin=1-surv.surv,ymax=1),alpha=1,fill=death.fill.color)
             
         }

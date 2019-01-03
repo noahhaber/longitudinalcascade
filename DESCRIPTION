@@ -10,5 +10,5 @@ Description: The package creates a series of set of graphics and statistics rela
 License: CC0
 Encoding: UTF-8
 LazyData: true
-Imports: dplyr,survival,ggplot2,tidyr,zoo,scales
+Imports: dplyr,survival,ggplot2,tidyr,zoo,scales,grDevices
 RoxygenNote: 6.1.1
