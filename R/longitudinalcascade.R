@@ -19,6 +19,8 @@
 #' @param main.fill.colors (optional) This defines the color scheme of the stage transition graphs, as a string indicator for color or a c() list of colors. If the colors contain only one color, the color scheme will automatically generate progressively faded versions of the initial color provided for the remaining stage transitions. Otherwise, a list which is exactly one fewer than the # of stages must be provided, in the order of stage trasitions.
 #' @param death.fill.color (optional) This defines the color scheme for the death stage transition, as a string indicator for color.
 #' @import survival ggplot2 dplyr tidyr zoo scales grDevices
+#' @importFrom stats relevel
+#' @importFrom rlang .data
 #' @export
 #' @references Haber et al. (2017) Lancet HIV 4(5):e223-e230
 #' (\href{https://www.ncbi.nlm.nih.gov/pubmed/28153470}{PubMed})
@@ -72,7 +74,8 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
         colnames(stages) <- c("stage","stage.number","stage.index")
       # Replace stages with an index for stages
         events.long <- merge(events.long,stages,by="stage")
-        events.long <- subset( events.long, select = -stage )
+        events.long <- events.long[,!(names(events.long) %in% c("stage"))]
+        #events.long <- subset( events.long, select = -stage )
         events.long <- events.long[order(events.long$stage.number),]
         events.long$stage.index <- NULL
       # Generate a single "group" if groups are not specified
@@ -82,7 +85,7 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
         } else{}
       # Generate separated wide list of stage events
         events.wide <- events.long %>%
-          tidyr::spread(stage.number, date)
+          tidyr::spread(.data$stage.number, date)
       # Replace names with "date"
         names(events.wide) <- gsub("stage.", "date.stage.",names(events.wide))
     }
@@ -156,14 +159,14 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
     {
       # Merge in death events (if any)
         if (is.na(death.indicator)==FALSE){
-          events.death <- subset(events.long.orig,stage==death.indicator)
+          events.death <- subset(events.long.orig,events.long.orig$stage==death.indicator)
           events.death <- events.death[c("ID","date")]
           colnames(events.death) <- c("ID","date.death")
           events.wide <- merge(events.wide,events.death,by="ID",all.x = TRUE)
         }
       # Merge in censorship events (if any)
         if (is.na(censorship.indicator)==FALSE){
-          events.censorship <- subset(events.long.orig,stage==censorship.indicator)
+          events.censorship <- subset(events.long.orig,events.long.orig$stage==censorship.indicator)
           events.censorship <- events.censorship[c("ID","date")]
           colnames(events.censorship) <- c("ID","date.censorship")
           events.wide <- merge(events.wide,events.censorship,by="ID",all.x = TRUE)
@@ -416,8 +419,8 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
             surv.combined.chart <- subset(surv.combined.chart,surv.combined.chart$surv.time<=x.axis.max)
           # Drop out duplicate boxes (due to censoring) to reduce drawing time
             surv.combined.chart <- surv.combined.chart %>%
-              dplyr::arrange(group.factor,start.stage.factor,end.stage.factor,surv.time) %>%
-              dplyr::group_by(surv.surv,start.stage.factor,end.stage.factor,group.factor) %>%
+              dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time) %>%
+              dplyr::group_by(.data$surv.surv,.data$start.stage.factor,.data$end.stage.factor,.data$group.factor) %>%
               dplyr::slice(c(n()))
           # Generate beginning axis events to keep fill graphics going from start of chart at 0
             surv.combined.chart.beginning <- surv.combined.chart
@@ -431,11 +434,11 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
             surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.beginning)
             # Rearrange and sort for drawing
               surv.combined.chart <- surv.combined.chart %>%
-                dplyr::arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
+                dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time)
           # Generate end of exis events to keep fill graphics going to end of chart
             surv.combined.chart.end <- surv.combined.chart %>%
-              dplyr::group_by(start.stage.index,end.stage.index,group.index) %>%
-              dplyr::slice(which.max(surv.surv))
+              dplyr::group_by(.data$start.stage.index,.data$end.stage.index,.data$group.index) %>%
+              dplyr::slice(which.max(.data$surv.surv))
             surv.combined.chart.end$surv.time <- x.axis.max + 1
             surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.end)
             surv.combined.chart.end$surv.surv <- 0
@@ -451,7 +454,7 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
             # surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.extra)
           # Rearrange and sort for drawing
             surv.combined.chart <- surv.combined.chart %>%
-              dplyr::arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
+              dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time)
           # Temporary for putting in years
             surv.combined.chart$surv.time = surv.combined.chart$surv.time/365
 
@@ -465,8 +468,8 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
               surv.death.combined.chart <- subset(surv.death.combined.chart,surv.death.combined.chart$surv.time<=x.axis.max)
             # Drop out duplicate boxes (due to censoring) to reduce drawing time
               surv.death.combined.chart <- surv.death.combined.chart %>%
-                dplyr::arrange(group.factor,start.stage.factor,end.stage.factor,surv.time) %>%
-                dplyr::group_by(surv.surv,start.stage.factor,end.stage.factor,group.factor) %>%
+                dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time) %>%
+                dplyr::group_by(.data$surv.surv,.data$start.stage.factor,.data$end.stage.factor,.data$group.factor) %>%
                 dplyr::slice(c(n()))
             # Generate beginning of axis events to keep graphics going until the end of chart
               surv.death.combined.chart.extra <- surv.death.combined.chart
@@ -477,7 +480,7 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
               surv.death.combined.chart <- rbind(surv.death.combined.chart,surv.death.combined.chart.extra)
             # Rearrange and sort for drawing
               surv.death.combined.chart <- surv.death.combined.chart %>%
-                dplyr::arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
+                dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time)
             # Generate end of axis events to keep graphics going until the end of chart
               surv.death.combined.chart.extra <- surv.death.combined.chart
               surv.death.combined.chart.extra$surv.surv <- 0
@@ -487,7 +490,7 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
               surv.death.combined.chart <- rbind(surv.death.combined.chart,surv.death.combined.chart.extra)
             # Rearrange and sort for drawing
               surv.death.combined.chart <- surv.death.combined.chart %>%
-                dplyr::arrange(group.factor,start.stage.factor,end.stage.factor,surv.time)
+                dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time)
             # Temporary for putting in years
               surv.death.combined.chart$surv.time = surv.death.combined.chart$surv.time/365
           }
@@ -498,9 +501,9 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
         chart <- ggplot2::ggplot(data=surv.combined.chart) +
           #geom_rect(aes(xmin=surv.time,xmax=lead(surv.time),ymin=0,ymax=surv.surv,fill=end.stage.factor),alpha=1) +
           #geom_rect(aes(xmin=surv.time,xmax=surv.time,ymin=0,ymax=surv.surv,fill=end.stage.factor),alpha=1) +
-          ggplot2::geom_polygon(aes(x=surv.time,y=surv.surv,fill=end.stage.factor),alpha=1) +
+          ggplot2::geom_polygon(aes(x=.data$surv.time,y=.data$surv.surv,fill=.data$end.stage.factor),alpha=1) +
           ggplot2::scale_fill_manual(values=main.fill.colors) +
-          ggplot2::geom_step(aes(x=surv.time,y=surv.surv,color=end.stage.factor)) +
+          ggplot2::geom_step(aes(x=.data$surv.time,y=.data$surv.surv,color=.data$end.stage.factor)) +
           ggplot2::theme_bw() %+replace%
           ggplot2::theme(
             panel.grid = element_blank(),
@@ -526,8 +529,8 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
       # Add death event if present
         if (is.na(death.indicator)==FALSE){
           chart <- chart +
-            ggplot2::geom_polygon(data=surv.death.combined.chart,aes(x=surv.time,y=1-surv.surv),alpha=1,fill=death.fill.color) + 
-            ggplot2::geom_step(data=surv.death.combined.chart,aes(x=surv.time,y=1-surv.surv))
+            ggplot2::geom_polygon(data=surv.death.combined.chart,aes(x=.data$surv.time,y=1-.data$surv.surv),alpha=1,fill=death.fill.color) + 
+            ggplot2::geom_step(data=surv.death.combined.chart,aes(x=.data$surv.time,y=1-.data$surv.surv))
             #geom_rect(data=surv.death.combined.chart,aes(xmin=surv.time,xmax=lead(surv.time),ymin=1-surv.surv,ymax=1),alpha=1,fill=death.fill.color)
             
         }
@@ -597,7 +600,7 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
           # Designate reference vs. comparator groups
             #group.order.internal <- c(reference.group,groups.order[groups.order!=reference.group])
             events.wide.internal$group <- factor(events.wide.internal$group,levels=groups.order,labels=groups.order)
-            events.wide.internal$group <- relevel(events.wide.internal$group, ref = reference.group)
+            events.wide.internal$group <- stats::relevel(events.wide.internal$group, ref = reference.group)
           # Run Cox Proportional hazards
             cox.ph <- coxph(Surv(time = time, event = event) ~ group,data=events.wide.internal)
             # name <- paste0("ref.group.",reference.group)
