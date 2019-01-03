@@ -7,7 +7,7 @@ Authors@R:
            role = c("aut", "cre"),
            email = "noahhaber@gmail.com")
 Description: The package creates a series of set of graphics and statistics related to the longitudinal cascade, all included in a single object. The longitudinal cascade inputs longitudinal data to identify gaps in the HIV and related cascades by observing differences using time to event and survival methods. The stage defintions are set by the user, with default standard options. Outputs include graphics, datasets, and formal statistical tests.
-License: CC0
+License:  MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Imports: dplyr,survival,ggplot2,tidyr,zoo,scales,grDevices,stats,rlang
