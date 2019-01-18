@@ -457,7 +457,6 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
               dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time)
           # Temporary for putting in years
             surv.combined.chart$surv.time = surv.combined.chart$surv.time/365
-
         }
         # Death events
         {
@@ -510,8 +509,8 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
             legend.position="bottom",
             legend.title=element_blank(),
             axis.text = element_text(colour="black",size=10),
-            strip.text.x = element_text(size = 12,hjust=0),
-            strip.text.y = element_text(size = 12),
+            strip.text = element_text(size = 12),
+            strip.text.x = element_text(hjust=0),
             panel.spacing = unit(1, "lines")
           ) +
           ggplot2::guides(color = guide_legend(override.aes = list(linetype = 0))) + 
