@@ -16,8 +16,10 @@
 #' @param allow.skips (To be replaced with additional options) This option shows "skips" across the cascade in each chart, as indicated by the y intercept. If FALSE, each stage will start only with people who have not moved on to a subsequent stage, i.e. the y intercept will always be 0. If TRUE, an individual can enter into a stage even if they have "skipped" it. For example, an individual may go straight from stage 1 to stage 3, skipping 2. If this indicator is FALSE, the stage transition chart from 2-3 will not contain this individual in the denomenator. If TRUE, this individual will be counted in the denomenator for this transition, but will be counted as having transitioned into stage 3 immediately upon entering stage 2.
 #' @param x.axis.max This option shows the maximum range of the x axis in days. Defaults to 365 days (1 year).
 #' @param nochart Setting this to TRUE prevents the function from generating the main chart.
+#' @param risk.pool.size.line Setting to TRUE adds an indicator of risk pool remaining to the main charts as a line reflected beneath the main chart, showing the proportion of the original risk pool remaining at each time point, starting from 100%. Defaults to FALSE.
 #' @param main.fill.colors (optional) This defines the color scheme of the stage transition graphs, as a string indicator for color or a c() list of colors. If the colors contain only one color, the color scheme will automatically generate progressively faded versions of the initial color provided for the remaining stage transitions. Otherwise, a list which is exactly one fewer than the # of stages must be provided, in the order of stage trasitions.
 #' @param death.fill.color (optional) This defines the color scheme for the death stage transition, as a string indicator for color.
+#' @param risk.pool.fill.color (optional) This defines the color scheme for the risk pool graphic, as a string indicator for color.
 #' @import survival ggplot2 dplyr tidyr zoo scales grDevices
 #' @importFrom stats relevel
 #' @importFrom rlang .data
@@ -62,7 +64,8 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
                          groups.date.breaks=NA,
                          x.axis.max=365,
                          main.fill.colors = "#4472C4",death.fill.color = "#FF6A6A",
-                         nochart=FALSE) {
+                         nochart=FALSE,risk.pool.size.line=FALSE,
+                         risk.pool.fill.color = "#90dbb2") {
   # Data manipulation
   {
     # Transform data into wide form
@@ -295,8 +298,10 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
             surv.p <- 1-chart.surv$surv
             surv.p.UB <- 1-chart.surv$lower
             surv.p.LB <- 1-chart.surv$upper
-            surv.n <- chart.surv$n
-            surv.data <- data.frame(surv.time,surv.p,surv.p.UB,surv.p.LB,surv.n)
+            surv.n.t0 <- chart.surv$n
+            surv.n.atrisk <- chart.surv$n.risk
+            surv.p.atrisk <- chart.surv$n.risk/surv.n.t0
+            surv.data <- data.frame(surv.time,surv.p,surv.p.UB,surv.p.LB,surv.n.t0,surv.n.atrisk,surv.p.atrisk)
             #surv.data <- data.frame(surv.time,surv.p)
             surv.data$start.stage.index <- start.stage.index
             surv.data$end.stage.index <- end.stage.index
@@ -407,7 +412,7 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
           if (length(main.fill.colors)==1){
             main.fill.colors <- color.gradient(main.fill.colors,(length(stages.order)-1))
           } else {}
-          
+
       }
       # Data manipulation
       {
@@ -429,34 +434,29 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
             surv.combined.chart.beginning$surv.p.LB <- 0
             surv.combined.chart.beginning$surv.p.UB <- 0
             surv.combined.chart.beginning$surv.n <- 0
+            surv.combined.chart.beginning$surv.p.atrisk <- 1
             surv.combined.chart.beginning <- unique(surv.combined.chart.beginning)
             surv.combined.chart.beginning <- surv.combined.chart.beginning[, colnames(surv.combined.chart)]
             surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.beginning)
             # Rearrange and sort for drawing
               surv.combined.chart <- surv.combined.chart %>%
                 dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time)
-          # Generate end of exis events to keep fill graphics going to end of chart
+          # Generate end of axis events to keep fill graphics going to end of chart
             surv.combined.chart.end <- surv.combined.chart %>%
               dplyr::group_by(.data$start.stage.index,.data$end.stage.index,.data$group.index) %>%
               dplyr::slice(which.max(.data$surv.p))
             surv.combined.chart.end$surv.time <- x.axis.max + 1
             surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.end)
             surv.combined.chart.end$surv.p <- 0
+            surv.combined.chart.end$surv.p.atrisk <- 1
             surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.end)
-          # Generate rectangle ends for drawing shading
-            #surv.combined.chart$rect.end <- ifelse(lead(surv.combined.chart$surv.p)==0,x.axis.max,lead(surv.combined.chart$surv.p))
-          # Generate end of axis events to keep graphics going until the end of chart
-            # surv.combined.chart.extra <- surv.combined.chart
-            # surv.combined.chart.extra$surv.p <- 0
-            # surv.combined.chart.extra$surv.time <- x.axis.max
-            # surv.combined.chart.extra <- unique(surv.combined.chart.extra)
-            # surv.combined.chart.extra <- surv.combined.chart.extra[, colnames(surv.combined.chart)]
-            # surv.combined.chart <- rbind(surv.combined.chart,surv.combined.chart.extra)
           # Rearrange and sort for drawing
             surv.combined.chart <- surv.combined.chart %>%
               dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time)
           # Temporary for putting in years
             surv.combined.chart$surv.time = surv.combined.chart$surv.time/365
+          # Generate risk pool dataset
+            surv.combined.chart.risk.pool <- surv.combined.chart[surv.combined.chart$end.stage.index == (surv.combined.chart$start.stage.index +1) ,]
         }
         # Death events
         {
@@ -505,6 +505,7 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
           ggplot2::theme(
             panel.grid = element_blank(),
             plot.margin = unit(c(.1,.1,.1,.1), "cm"),
+            #panel.border = element_blank(),
             axis.title.y=element_blank(),
             legend.position="bottom",
             legend.title=element_blank(),
@@ -513,11 +514,10 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
             strip.text.x = element_text(hjust=0),
             panel.spacing = unit(1, "lines")
           ) +
-          ggplot2::guides(color = guide_legend(override.aes = list(linetype = 0))) + 
+          ggplot2::guides(color = guide_legend(override.aes = list(linetype = 0))) +
           ggplot2::scale_x_continuous(expand = c(0, 0),
                             labels=x.scale.function,
                             breaks = c(0,round2(x.axis.range/365,0))) +
-          ggplot2::coord_cartesian(xlim=c(0,(x.axis.range/365)),ylim = c(0, 1)) +
           ggplot2::xlab("Time (years) from start of stage") +
           ggplot2::scale_y_continuous(expand = c(0, 0),labels=percent) +
           ggplot2::scale_color_manual(values=c(rep("black",length(stages.order)-1))) +
@@ -525,14 +525,27 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
                      switch="y") +
           ggplot2::theme(strip.background = element_blank(),
                 strip.placement = "outside")
+      # Add risk pool proportion indicator if indicated
+        if (risk.pool.size.line==TRUE){
+          chart <- chart +
+            ggplot2::coord_cartesian(xlim=c(0,(x.axis.range/365)),ylim = c(-.2, 1)) +
+            ggplot2::geom_polygon(data = surv.combined.chart.risk.pool,aes(x=.data$surv.time,y=((.data$surv.p.atrisk-1)/5),fill=.data$end.stage.factor),alpha=1,fill=risk.pool.fill.color) +
+            ggplot2::geom_step(data = surv.combined.chart.risk.pool,aes(x=.data$surv.time,y=(.data$surv.p.atrisk-1)/5))
+            #ggplot2::geom_line(x=.data$surv.time,.data$y=.1)
+        } else {
+          chart <- chart +
+            ggplot2::coord_cartesian(xlim=c(0,(x.axis.range/365)),ylim = c(0, 1))
+        }
       # Add death event if present
         if (is.na(death.indicator)==FALSE){
           chart <- chart +
-            ggplot2::geom_polygon(data=surv.death.combined.chart,aes(x=.data$surv.time,y=1-.data$surv.p),alpha=1,fill=death.fill.color) + 
+            ggplot2::geom_polygon(data=surv.death.combined.chart,aes(x=.data$surv.time,y=1-.data$surv.p),alpha=1,fill=death.fill.color) +
             ggplot2::geom_step(data=surv.death.combined.chart,aes(x=.data$surv.time,y=1-.data$surv.p))
             #geom_rect(data=surv.death.combined.chart,aes(xmin=surv.time,xmax=lead(surv.time),ymin=1-surv.p,ymax=1),alpha=1,fill=death.fill.color)
-            
-        }
+        } else {}
+      # Add touchup graphics
+        chart <- chart +
+           ggplot2::geom_hline(yintercept=0)
       }
     }
     else {
