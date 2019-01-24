@@ -457,6 +457,8 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
             surv.combined.chart$surv.time = surv.combined.chart$surv.time/365
           # Generate risk pool dataset
             surv.combined.chart.risk.pool <- surv.combined.chart[surv.combined.chart$end.stage.index == (surv.combined.chart$start.stage.index +1) ,]
+          # Add a dummy factor for legend
+            surv.combined.chart.risk.pool$event.factor <- factor("Risk pool",labels = c("Risk pool"),levels = c("Risk pool"))
         }
         # Death events
         {
@@ -492,20 +494,23 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
                 dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time)
             # Temporary for putting in years
               surv.death.combined.chart$surv.time = surv.death.combined.chart$surv.time/365
+            # Add dummy event factor for legends
+              surv.death.combined.chart$event.factor <- factor(death.indicator,labels = c(death.indicator),levels = c(death.indicator))
           }
         }
       }
       # Generate chart
       {
-        chart <- ggplot2::ggplot(data=surv.combined.chart) +
-          ggplot2::geom_polygon(aes(x=.data$surv.time,y=.data$surv.p,fill=.data$end.stage.factor),alpha=1) +
-          ggplot2::scale_fill_manual(values=main.fill.colors) +
-          ggplot2::geom_step(aes(x=.data$surv.time,y=.data$surv.p,color=.data$end.stage.factor)) +
+        chart <- ggplot2::ggplot() +
+          ggplot2::geom_polygon(data=surv.combined.chart,aes(x=.data$surv.time,y=.data$surv.p,fill=.data$end.stage.factor),
+                                alpha=1) +
+          #ggplot2::scale_fill_manual(values=main.fill.colors) +
+          ggplot2::geom_step(data=surv.combined.chart,aes(x=.data$surv.time,y=.data$surv.p,color=.data$end.stage.factor),
+                             show.legend = FALSE) +
           ggplot2::theme_bw() %+replace%
           ggplot2::theme(
             panel.grid = element_blank(),
             plot.margin = unit(c(.1,.1,.1,.1), "cm"),
-            #panel.border = element_blank(),
             axis.title.y=element_blank(),
             legend.position="bottom",
             legend.title=element_blank(),
@@ -529,9 +534,10 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
         if (risk.pool.size.line==TRUE){
           chart <- chart +
             ggplot2::coord_cartesian(xlim=c(0,(x.axis.range/365)),ylim = c(-.2, 1)) +
-            ggplot2::geom_polygon(data = surv.combined.chart.risk.pool,aes(x=.data$surv.time,y=((.data$surv.p.atrisk-1)/5),fill=.data$end.stage.factor),alpha=1,fill=risk.pool.fill.color) +
+            ggplot2::geom_polygon(data = surv.combined.chart.risk.pool,
+                                  aes(x=.data$surv.time,y=((.data$surv.p.atrisk-1)/5)),
+                                  alpha=1,fill=risk.pool.fill.color) +
             ggplot2::geom_step(data = surv.combined.chart.risk.pool,aes(x=.data$surv.time,y=(.data$surv.p.atrisk-1)/5))
-            #ggplot2::geom_line(x=.data$surv.time,.data$y=.1)
         } else {
           chart <- chart +
             ggplot2::coord_cartesian(xlim=c(0,(x.axis.range/365)),ylim = c(0, 1))
@@ -539,13 +545,18 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
       # Add death event if present
         if (is.na(death.indicator)==FALSE){
           chart <- chart +
-            ggplot2::geom_polygon(data=surv.death.combined.chart,aes(x=.data$surv.time,y=1-.data$surv.p),alpha=1,fill=death.fill.color) +
+            ggplot2::geom_polygon(data=surv.death.combined.chart,aes(x=.data$surv.time,y=1-.data$surv.p),
+                                  alpha=1,fill=death.fill.color) +
+            #ggplot2::geom_polygon(data=surv.death.combined.chart,aes(x=.data$surv.time,y=1-.data$surv.p,fill=.data$event.factor),
+            #                      alpha=1) +
             ggplot2::geom_step(data=surv.death.combined.chart,aes(x=.data$surv.time,y=1-.data$surv.p))
-            #geom_rect(data=surv.death.combined.chart,aes(xmin=surv.time,xmax=lead(surv.time),ymin=1-surv.p,ymax=1),alpha=1,fill=death.fill.color)
         } else {}
       # Add touchup graphics
         chart <- chart +
-           ggplot2::geom_hline(yintercept=0)
+          ggplot2::geom_hline(yintercept=0)
+      # Set fill colors
+        chart <- chart +
+          ggplot2::scale_fill_manual(values = main.fill.colors)
       }
     }
     else {
