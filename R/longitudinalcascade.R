@@ -20,7 +20,7 @@
 #' @param main.fill.colors (optional) This defines the color scheme of the stage transition graphs, as a string indicator for color or a c() list of colors. If the colors contain only one color, the color scheme will automatically generate progressively faded versions of the initial color provided for the remaining stage transitions. Otherwise, a list which is exactly one fewer than the # of stages must be provided, in the order of stage trasitions.
 #' @param death.fill.color (optional) This defines the color scheme for the death stage transition, as a string indicator for color.
 #' @param risk.pool.fill.color (optional) This defines the color scheme for the risk pool graphic, as a string indicator for color.
-#' @import survival ggplot2 dplyr tidyr zoo scales grDevices
+#' @import survival ggplot2 dplyr tidyr zoo scales grDevices RcmdrPlugin.KMggplot2
 #' @importFrom stats relevel
 #' @importFrom rlang .data
 #' @export
@@ -93,28 +93,28 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
         names(events.wide) <- gsub("stage.", "date.stage.",names(events.wide))
     }
     # Generate time-based groups if time breaks are specified
-      if (anyNA(groups.date.breaks)==FALSE){
-        # Generate group names from breaks
-          groups.order <- c(paste0(as.character(groups.date.breaks[1])," to ",as.character(groups.date.breaks[2]-1)))
-          for (i in 2:(length(groups.date.breaks)-1)){
-            groups.order <- c(groups.order,paste0(as.character(groups.date.breaks[i])," to ",as.character(groups.date.breaks[i+1]-1)))
-          }
-        # Generate grouping for each event except the last to determine whether the start event is within time breaks
-          for (stage.index in 1:(length(stages.order)-1)){
-            events.wide[[paste0("date.stage.",stage.index,".group")]] <- NA
-            for (break.index in 1:(length(groups.date.breaks)-1)){
-              events.wide[[paste0("date.stage.",stage.index,".group")]] <- ifelse(
-                (events.wide[[paste0("date.stage.",stage.index)]] >= groups.date.breaks[break.index]) & (events.wide[[paste0("date.stage.",stage.index)]] < groups.date.breaks[break.index+1]),
-                groups.order[break.index],
-                events.wide[[paste0("date.stage.",stage.index,".group")]])
-                #events.wide[[paste0("date.stage.group.",group.index)]])
-            }
+    if (anyNA(groups.date.breaks)==FALSE){
+      # Generate group names from breaks
+        groups.order <- c(paste0(as.character(groups.date.breaks[1])," to ",as.character(groups.date.breaks[2]-1)))
+        for (i in 2:(length(groups.date.breaks)-1)){
+          groups.order <- c(groups.order,paste0(as.character(groups.date.breaks[i])," to ",as.character(groups.date.breaks[i+1]-1)))
+        }
+      # Generate grouping for each event except the last to determine whether the start event is within time breaks
+        for (stage.index in 1:(length(stages.order)-1)){
+          events.wide[[paste0("date.stage.",stage.index,".group")]] <- NA
+          for (break.index in 1:(length(groups.date.breaks)-1)){
             events.wide[[paste0("date.stage.",stage.index,".group")]] <- ifelse(
-              is.na(events.wide[[paste0("date.stage.",stage.index,".group")]]),
-              "No group membership",
+              (events.wide[[paste0("date.stage.",stage.index)]] >= groups.date.breaks[break.index]) & (events.wide[[paste0("date.stage.",stage.index)]] < groups.date.breaks[break.index+1]),
+              groups.order[break.index],
               events.wide[[paste0("date.stage.",stage.index,".group")]])
+              #events.wide[[paste0("date.stage.group.",group.index)]])
           }
-      } else{}
+          events.wide[[paste0("date.stage.",stage.index,".group")]] <- ifelse(
+            is.na(events.wide[[paste0("date.stage.",stage.index,".group")]]),
+            "No group membership",
+            events.wide[[paste0("date.stage.",stage.index,".group")]])
+        }
+    } else{}
     # Fix ordering, so that completion of a later stage indicates completion of earlier stage, and mark where this happens
     {
       for (stage.index in seq(length(stages.order)-1,1,-1)){
@@ -378,6 +378,53 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
       }
     }
   }
+  # Generate interstage events
+  if (0==1){
+    # Temporary variables
+      interstage.indicator <- "Follow up visit"
+      interstage.time <- 90 # Could be "since beginning of time"
+      interstage.allowed.events <- 1 # More events creates striations
+    if (!is.na(interstage.indicator)){
+      # Determine dates of interstage events between main events
+      {
+        events.interstage.long <- merge(events.long.orig[events.long.orig$stage==interstage.indicator,],
+                                        events.wide[c("ID",paste0("date.stage.",(1:length(stages.order))),paste0("date.stage.",(1:(length(stages.order)-1)),".group"))],
+                                        by="ID",all.x=TRUE)
+        events.interstage.long$interstage.transition <- NA
+        events.interstage.long$interstage.transition.time <- NA
+        events.interstage.long$interstage.transition.group <- NA
+        events.interstage.long$interstage.transition.start.stage.index <- NA
+        for (i in 1:(length(stages.order)-1)){
+          events.interstage.long$between <- events.interstage.long$date>events.interstage.long[[paste0("date.stage.",i)]] & events.interstage.long$date<events.interstage.long[[paste0("date.stage.",i+1)]] & !is.na(events.interstage.long$date<events.interstage.long[[paste0("date.stage.",i+1)]])
+          events.interstage.long$interstage.transition[events.interstage.long$between==TRUE] <- paste0("interstage.stage.",i,".to.",(i+1))
+          events.interstage.long$interstage.transition.group[events.interstage.long$between==TRUE] <- events.interstage.long[[paste0("date.stage.",i,".group")]][events.interstage.long$between==TRUE]
+          events.interstage.long$interstage.transition.start.stage.index[events.interstage.long$between==TRUE] <- i
+          events.interstage.long$interstage.transition.time[events.interstage.long$between==TRUE] <- events.interstage.long$date[events.interstage.long$between==TRUE] - events.interstage.long[[paste0("date.stage.",i)]][events.interstage.long$between==TRUE]
+        }
+        if (!is.na(death.indicator)) {
+          events.interstage.long <- merge(events.interstage.long,events.wide[c("ID","date.death")],
+                                        by="ID",all.x=TRUE)
+          events.interstage.long <- events.interstage.long[(events.interstage.long$date<events.interstage.long$date.death) | is.na(events.interstage.long$date.death),]
+        }
+        if (!is.na(censorship.indicator)) {
+          events.interstage.long <- merge(events.interstage.long,events.wide[c("ID","date.censorship")],
+                                        by="ID",all.x=TRUE)
+          events.interstage.long <- events.interstage.long[(events.interstage.long$date<events.interstage.long$date.censorship) | is.na(events.interstage.long$date.censorship),]
+        }
+        events.interstage.long <- events.interstage.long[c("ID","date","interstage.transition","interstage.transition.time","interstage.transition.group","interstage.transition.start.stage.index")]
+        events.interstage.long <- events.interstage.long[!is.na(events.interstage.long$interstage.transition),]
+        events.interstage.long <- events.interstage.long[order(events.interstage.long$ID,events.interstage.long$date),]
+      }
+      # Merge in factor data from wide-formatted for selected grouping and stage factors
+      {
+        #
+      }
+    } else {}
+    # Determine which mode of counting interstage events
+    # Interstage event definitions:
+    # 1) Count of events from beginning to date
+    # 2) Had at least one FU event within X days
+  }
   # Generate chart graphics
   {
     if (nochart==FALSE){
@@ -459,6 +506,7 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
             surv.combined.chart.risk.pool <- surv.combined.chart[surv.combined.chart$end.stage.index == (surv.combined.chart$start.stage.index +1) ,]
           # Add a dummy factor for legend
             surv.combined.chart.risk.pool$event.factor <- factor("Risk pool",labels = c("Risk pool"),levels = c("Risk pool"))
+          # Generate version which includes end steps for stepwise fill
         }
         # Death events
         {
@@ -502,9 +550,8 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
       # Generate chart
       {
         chart <- ggplot2::ggplot() +
-          ggplot2::geom_polygon(data=surv.combined.chart,aes(x=.data$surv.time,y=.data$surv.p,fill=.data$end.stage.factor),
-                                alpha=1) +
-          #ggplot2::scale_fill_manual(values=main.fill.colors) +
+          RcmdrPlugin.KMggplot2::geom_stepribbon(data=surv.combined.chart,aes(x=.data$surv.time,ymax=.data$surv.p,fill=.data$end.stage.factor,ymin=0),
+                                                 alpha=1) +
           ggplot2::geom_step(data=surv.combined.chart,aes(x=.data$surv.time,y=.data$surv.p,color=.data$end.stage.factor),
                              show.legend = FALSE) +
           ggplot2::theme_bw() %+replace%
@@ -534,8 +581,8 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
         if (risk.pool.size.line==TRUE){
           chart <- chart +
             ggplot2::coord_cartesian(xlim=c(0,(x.axis.range/365)),ylim = c(-.2, 1)) +
-            ggplot2::geom_polygon(data = surv.combined.chart.risk.pool,
-                                  aes(x=.data$surv.time,y=((.data$surv.p.atrisk-1)/5)),
+            RcmdrPlugin.KMggplot2::geom_stepribbon(data = surv.combined.chart.risk.pool,
+                                  aes(x=.data$surv.time,ymin=((.data$surv.p.atrisk-1)/5),ymax=0),
                                   alpha=1,fill=risk.pool.fill.color) +
             ggplot2::geom_step(data = surv.combined.chart.risk.pool,aes(x=.data$surv.time,y=(.data$surv.p.atrisk-1)/5))
         } else {
@@ -545,7 +592,7 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
       # Add death event if present
         if (is.na(death.indicator)==FALSE){
           chart <- chart +
-            ggplot2::geom_polygon(data=surv.death.combined.chart,aes(x=.data$surv.time,y=1-.data$surv.p),
+            RcmdrPlugin.KMggplot2::geom_stepribbon(data=surv.death.combined.chart,aes(x=.data$surv.time,ymin=1-.data$surv.p,ymax=1),
                                   alpha=1,fill=death.fill.color) +
             #ggplot2::geom_polygon(data=surv.death.combined.chart,aes(x=.data$surv.time,y=1-.data$surv.p,fill=.data$event.factor),
             #                      alpha=1) +
