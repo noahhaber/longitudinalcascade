@@ -550,7 +550,7 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
       # Generate chart
       {
         chart <- ggplot2::ggplot() +
-          RcmdrPlugin.KMggplot2::geom_stepribbon(data=surv.combined.chart,aes(x=.data$surv.time,ymax=.data$surv.p,fill=.data$end.stage.factor,ymin=0),
+          RcmdrPlugin.KMggplot2::geom_stepribbon( data=surv.combined.chart,aes(x=.data$surv.time,ymax=.data$surv.p,fill=.data$end.stage.factor,ymin=0),
                                                  alpha=1) +
           ggplot2::geom_step(data=surv.combined.chart,aes(x=.data$surv.time,y=.data$surv.p,color=.data$end.stage.factor),
                              show.legend = FALSE) +
