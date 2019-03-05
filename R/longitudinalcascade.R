@@ -20,7 +20,7 @@
 #' @param main.fill.colors (optional) This defines the color scheme of the stage transition graphs, as a string indicator for color or a c() list of colors. If the colors contain only one color, the color scheme will automatically generate progressively faded versions of the initial color provided for the remaining stage transitions. Otherwise, a list which is exactly one fewer than the # of stages must be provided, in the order of stage trasitions.
 #' @param death.fill.color (optional) This defines the color scheme for the death stage transition, as a string indicator for color.
 #' @param risk.pool.fill.color (optional) This defines the color scheme for the risk pool graphic, as a string indicator for color.
-#' @import survival ggplot2 dplyr tidyr zoo scales grDevices RcmdrPlugin.KMggplot2
+#' @import survival ggplot2 dplyr tidyr zoo scales grDevices
 #' @importFrom stats relevel
 #' @importFrom rlang .data
 #' @export
@@ -378,53 +378,7 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
       }
     }
   }
-  # Generate interstage events
-  if (0==1){
-    # Temporary variables
-      interstage.indicator <- "Follow up visit"
-      interstage.time <- 90 # Could be "since beginning of time"
-      interstage.allowed.events <- 1 # More events creates striations
-    if (!is.na(interstage.indicator)){
-      # Determine dates of interstage events between main events
-      {
-        events.interstage.long <- merge(events.long.orig[events.long.orig$stage==interstage.indicator,],
-                                        events.wide[c("ID",paste0("date.stage.",(1:length(stages.order))),paste0("date.stage.",(1:(length(stages.order)-1)),".group"))],
-                                        by="ID",all.x=TRUE)
-        events.interstage.long$interstage.transition <- NA
-        events.interstage.long$interstage.transition.time <- NA
-        events.interstage.long$interstage.transition.group <- NA
-        events.interstage.long$interstage.transition.start.stage.index <- NA
-        for (i in 1:(length(stages.order)-1)){
-          events.interstage.long$between <- events.interstage.long$date>events.interstage.long[[paste0("date.stage.",i)]] & events.interstage.long$date<events.interstage.long[[paste0("date.stage.",i+1)]] & !is.na(events.interstage.long$date<events.interstage.long[[paste0("date.stage.",i+1)]])
-          events.interstage.long$interstage.transition[events.interstage.long$between==TRUE] <- paste0("interstage.stage.",i,".to.",(i+1))
-          events.interstage.long$interstage.transition.group[events.interstage.long$between==TRUE] <- events.interstage.long[[paste0("date.stage.",i,".group")]][events.interstage.long$between==TRUE]
-          events.interstage.long$interstage.transition.start.stage.index[events.interstage.long$between==TRUE] <- i
-          events.interstage.long$interstage.transition.time[events.interstage.long$between==TRUE] <- events.interstage.long$date[events.interstage.long$between==TRUE] - events.interstage.long[[paste0("date.stage.",i)]][events.interstage.long$between==TRUE]
-        }
-        if (!is.na(death.indicator)) {
-          events.interstage.long <- merge(events.interstage.long,events.wide[c("ID","date.death")],
-                                        by="ID",all.x=TRUE)
-          events.interstage.long <- events.interstage.long[(events.interstage.long$date<events.interstage.long$date.death) | is.na(events.interstage.long$date.death),]
-        }
-        if (!is.na(censorship.indicator)) {
-          events.interstage.long <- merge(events.interstage.long,events.wide[c("ID","date.censorship")],
-                                        by="ID",all.x=TRUE)
-          events.interstage.long <- events.interstage.long[(events.interstage.long$date<events.interstage.long$date.censorship) | is.na(events.interstage.long$date.censorship),]
-        }
-        events.interstage.long <- events.interstage.long[c("ID","date","interstage.transition","interstage.transition.time","interstage.transition.group","interstage.transition.start.stage.index")]
-        events.interstage.long <- events.interstage.long[!is.na(events.interstage.long$interstage.transition),]
-        events.interstage.long <- events.interstage.long[order(events.interstage.long$ID,events.interstage.long$date),]
-      }
-      # Merge in factor data from wide-formatted for selected grouping and stage factors
-      {
-        #
-      }
-    } else {}
-    # Determine which mode of counting interstage events
-    # Interstage event definitions:
-    # 1) Count of events from beginning to date
-    # 2) Had at least one FU event within X days
-  }
+
   # Generate chart graphics
   {
     if (nochart==FALSE){
@@ -460,6 +414,59 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
             main.fill.colors <- color.gradient(main.fill.colors,(length(stages.order)-1))
           } else {}
 
+      }
+      # Graphical functions
+      {
+        # Step ribbon function. Note: Original author of code was Triad sou from the RcmdrPlugin.KMggplot2 package
+        {
+          geom_stepribbon <- function(
+            mapping = NULL, data = NULL, stat = "identity", position = "identity",
+            na.rm = FALSE, show.legend = NA, inherit.aes = TRUE, kmplot = FALSE, ...) {
+            layer(
+              data = data,
+              mapping = mapping,
+              stat = stat,
+              geom = GeomStepribbon,
+              position = position,
+              show.legend = show.legend,
+              inherit.aes = inherit.aes,
+              params = list(
+                na.rm = na.rm,
+                kmplot = kmplot,
+                ...
+              )
+            )
+          }
+          GeomStepribbon <- ggproto(
+            "GeomStepribbon", GeomRibbon,
+            extra_params = c("na.rm", "kmplot"),
+            draw_group = function(data, panel_scales, coord, na.rm = FALSE) {
+              if (na.rm) data <- data[complete.cases(data[c("x", "ymin", "ymax")]), ]
+              data <- rbind(data, data)
+              data <- data[order(data$x), ]
+              data$x <- c(data$x[2:nrow(data)], NA)
+              data <- data[complete.cases(data["x"]), ]
+              GeomRibbon$draw_group(data, panel_scales, coord, na.rm = FALSE)
+            },
+            setup_data = function(data, params) {
+              if (params$kmplot) {
+                data <- data[order(data$PANEL, data$group, data$x), ]
+                tmpmin <- tmpmax <- NA
+                for (i in 1:nrow(data)) {
+                  if (is.na(data$ymin[i])) {
+                    data$ymin[i] <- tmpmin
+                  }
+                  if (is.na(data$ymax[i])) {
+                    data$ymax[i] <- tmpmax
+                  }
+                  tmpmin <- data$ymin[i]
+                  tmpmax <- data$ymax[i]
+                }
+              }
+              data
+            }
+          )
+        }
       }
       # Data manipulation
       {
@@ -550,7 +557,7 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
       # Generate chart
       {
         chart <- ggplot2::ggplot() +
-          RcmdrPlugin.KMggplot2::geom_stepribbon( data=surv.combined.chart,aes(x=.data$surv.time,ymax=.data$surv.p,fill=.data$end.stage.factor,ymin=0),
+          geom_stepribbon( data=surv.combined.chart,aes(x=.data$surv.time,ymax=.data$surv.p,fill=.data$end.stage.factor,ymin=0),
                                                  alpha=1) +
           ggplot2::geom_step(data=surv.combined.chart,aes(x=.data$surv.time,y=.data$surv.p,color=.data$end.stage.factor),
                              show.legend = FALSE) +
@@ -581,7 +588,7 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
         if (risk.pool.size.line==TRUE){
           chart <- chart +
             ggplot2::coord_cartesian(xlim=c(0,(x.axis.range/365)),ylim = c(-.2, 1)) +
-            RcmdrPlugin.KMggplot2::geom_stepribbon(data = surv.combined.chart.risk.pool,
+            geom_stepribbon(data = surv.combined.chart.risk.pool,
                                   aes(x=.data$surv.time,ymin=((.data$surv.p.atrisk-1)/5),ymax=0),
                                   alpha=1,fill=risk.pool.fill.color) +
             ggplot2::geom_step(data = surv.combined.chart.risk.pool,aes(x=.data$surv.time,y=(.data$surv.p.atrisk-1)/5))
@@ -592,7 +599,7 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
       # Add death event if present
         if (is.na(death.indicator)==FALSE){
           chart <- chart +
-            RcmdrPlugin.KMggplot2::geom_stepribbon(data=surv.death.combined.chart,aes(x=.data$surv.time,ymin=1-.data$surv.p,ymax=1),
+            geom_stepribbon(data=surv.death.combined.chart,aes(x=.data$surv.time,ymin=1-.data$surv.p,ymax=1),
                                   alpha=1,fill=death.fill.color) +
             #ggplot2::geom_polygon(data=surv.death.combined.chart,aes(x=.data$surv.time,y=1-.data$surv.p,fill=.data$event.factor),
             #                      alpha=1) +
