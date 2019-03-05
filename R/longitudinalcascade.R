@@ -29,7 +29,7 @@
 #' @examples
 #' # Pull in data from example simulated dataset
 #' library(longitudinalcascade)
-#' data(events_long)
+#' data(events_long_cascade_sim)
 #'
 #' # Set up options
 #' stages.order <- c("First tested positive","Knows status","Linked to care","Eligible for ART",
@@ -378,6 +378,7 @@ longitudinalcascade <- function(events.long,stages.order,groups.order=NA,
       }
     }
   }
+
   # Generate chart graphics
   {
     if (nochart==FALSE){
