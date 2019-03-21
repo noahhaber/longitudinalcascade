@@ -8,8 +8,9 @@ longitudinalcascade(events.long, stages.order, groups.order = NA,
   death.indicator = NA, censorship.indicator = NA,
   allow.sub.lines = FALSE, allow.skips = FALSE,
   groups.date.breaks = NA, x.axis.max = 365,
-  main.fill.colors = "#4472C4", death.fill.color = "indianred1",
-  nochart = FALSE)
+  main.fill.colors = "#4472C4", death.fill.color = "#FF6A6A",
+  nochart = FALSE, risk.pool.size.line = FALSE,
+  risk.pool.fill.color = "#90dbb2")
 }
 \arguments{
 \item{events.long}{(required) The main dataframe input parameter. The data frame needs at least the following fields:
@@ -39,6 +40,10 @@ longitudinalcascade(events.long, stages.order, groups.order = NA,
 \item{death.fill.color}{(optional) This defines the color scheme for the death stage transition, as a string indicator for color.}
 
 \item{nochart}{Setting this to TRUE prevents the function from generating the main chart.}
+
+\item{risk.pool.size.line}{Setting to TRUE adds an indicator of risk pool remaining to the main charts as a line reflected beneath the main chart, showing the proportion of the original risk pool remaining at each time point. Defaults to FALSE.}
+
+\item{risk.pool.fill.color}{(optional) This defines the color scheme for the risk pool graphic, as a string indicator for color.}
 }
 \description{
 This package generates a longitudinal casade, including a graphical representation. This takes a long-formatted list of stage-by-stage events and transforms it into a longitudinal cascade, correcting the orders of events.
@@ -46,7 +51,7 @@ This package generates a longitudinal casade, including a graphical representati
 \examples{
 # Pull in data from example simulated dataset
 library(longitudinalcascade)
-data(events_long_cascade_sim)
+data(events_long)
 
 # Set up options
 stages.order <- c("First tested positive","Knows status","Linked to care","Eligible for ART",
