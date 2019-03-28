@@ -753,7 +753,7 @@ longitudinalcascade <- function(events.long,stages.order,
           chart <- chart +
             geom_stepribbon(data=df.substage.death,
                             aes(x=.data$surv.time,ymin=.data$surv.p,ymax=.data$surv.p.reference,group=.data$reference.stage.index),
-                                  alpha=1,fill=death.fill.color) +
+                                  alpha=1,fill=death.fill.color,show.legend=TRUE) +
             ggplot2::geom_step(data=df.substage.death,
                                aes(x=.data$surv.time,y=.data$surv.p,group=.data$reference.stage.index))
         } else {}
