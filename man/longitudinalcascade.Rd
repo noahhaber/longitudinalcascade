@@ -5,12 +5,13 @@
 \title{Longitudinal cascade statistics and charts}
 \usage{
 longitudinalcascade(events.long, stages.order, groups.order = NA,
-  death.indicator = NA, censorship.indicator = NA,
-  allow.sub.lines = FALSE, allow.skips = FALSE,
-  groups.date.breaks = NA, x.axis.max = 365,
+  groups.date.breaks = NA, death.indicator = NA,
+  censorship.indicator = NA, censorship.date = "lastdate",
+  allow.sub.stages = FALSE, allow.sub.stage.mortality = FALSE,
+  skip.mode = "none", time.horizon = 365,
   main.fill.colors = "#4472C4", death.fill.color = "#FF6A6A",
   nochart = FALSE, risk.pool.size.line = FALSE,
-  risk.pool.fill.color = "#90dbb2")
+  risk.pool.fill.color = "#90dbb2", background.prior.event = TRUE)
 }
 \arguments{
 \item{events.long}{(required) The main dataframe input parameter. The data frame needs at least the following fields:
@@ -23,17 +24,19 @@ longitudinalcascade(events.long, stages.order, groups.order = NA,
 
 \item{groups.order}{(optional) This is a vector of groups, matching the "group" column of the main data frame. If left blank, no group comparisons will be performed. For the chart, each group will have its own row.}
 
+\item{groups.date.breaks}{(optional) If groups.date.breaks is filled in, the grouping will be defined by date range of entry event for each transition, rather than groups of individuals. Each transition will independently determine its own groups, based on the time in which the entrance event occurs. Times are determined by a vector of date breaks. Each group is defined as starting from a given date break value and continuing until it reaches the subsequent date break, not including data from that ending break value. For example, setting the break values to be January 1, 2011, January 1, 2012, and January 1, 2013 will create two groups. The first group will take individuals who entered each stage from January 1, 2011 to Dec 31, 2011, and the second will take individuals who entered into the stage from January 1, 2012 to Dec 31, 2012.}
+
 \item{death.indicator}{(optional) This parameter is the string which indicates a death event in the dataset. If specified, between-stage mortality will be estimated and shown as a KM curve on the top of the chart(s). If left blank, death events will not be estimated.}
 
 \item{censorship.indicator}{(optional) This parameter is the string which indicates a right-censorship event. Most commonly, this will indicate permanent loss to follow up and/or end of data collection.}
 
-\item{allow.sub.lines}{Sub-lines indicate subsequent transitions across the cascade. If TRUE, the main chart will show transitions to all possible subsequent events. For example, if there are 4 stages (1-4), the leftmost chart will show each transition from 1-2, 1-3, and 1-4, while the next chart will show 2-3 and 2-4, and the last chart will show only 3-4. If FALSE, the charts will only show transition to the subsequent stage.}
+\item{allow.sub.stages}{Sub-lines indicate subsequent transitions across the cascade. If TRUE, the main chart will show transitions to all possible subsequent events. For example, if there are 4 stages (1-4), the leftmost chart will show each transition from 1-2, 1-3, and 1-4, while the next chart will show 2-3 and 2-4, and the last chart will show only 3-4. If FALSE, the charts will only show transition to the subsequent stage.}
 
-\item{allow.skips}{(To be replaced with additional options) This option shows "skips" across the cascade in each chart, as indicated by the y intercept. If FALSE, each stage will start only with people who have not moved on to a subsequent stage, i.e. the y intercept will always be 0. If TRUE, an individual can enter into a stage even if they have "skipped" it. For example, an individual may go straight from stage 1 to stage 3, skipping 2. If this indicator is FALSE, the stage transition chart from 2-3 will not contain this individual in the denomenator. If TRUE, this individual will be counted in the denomenator for this transition, but will be counted as having transitioned into stage 3 immediately upon entering stage 2.}
+\item{allow.sub.stage.mortality}{Sub-stage-mortality indicate subsequent mortality transitions across the cascade. If TRUE, the main chart will show transitions to all possible subsequent events. For example, if there are 4 stages (1-4), the leftmost chart will show each transition from 1-2, 1-3, and 1-4, while the next chart will show 2-3 and 2-4, and the last chart will show only 3-4. If FALSE, the charts will only show transition to the subsequent stage.}
 
-\item{groups.date.breaks}{(optional) If groups.date.breaks is filled in, the grouping will be defined by date range of entry event for each transition, rather than groups of individuals. Each transition will independently determine its own groups, based on the time in which the entrance event occurs. Times are determined by a vector of date breaks. Each group is defined as starting from a given date break value and continuing until it reaches the subsequent date break, not including data from that ending break value. For example, setting the break values to be January 1, 2011, January 1, 2012, and January 1, 2013 will create two groups. The first group will take individuals who entered each stage from January 1, 2011 to Dec 31, 2011, and the second will take individuals who entered into the stage from January 1, 2012 to Dec 31, 2012.}
+\item{skip.mode}{This option shows "skips" across the cascade in each chart, as indicated by the y intercept. If "none" (default) each stage will start only with people who have not moved on to a subsequent stage, i.e. the y intercept will always be 0. If set to "internal" an individual can enter into a stage even if they have "skipped" through it. For example, an individual may go straight from stage 1 to stage 3, skipping 2. If this indicator is FALSE, the stage transition chart from 2-3 will not contain this individual in the denomenator. If TRUE, this individual will be counted in the denomenator for this transition, but will be counted as having transitioned into stage 3 immediately upon entering stage 2. If "external" individuals contribute person-time and are in the y-axis of transitions even prior to their first recorded stage date.}
 
-\item{x.axis.max}{This option shows the maximum range of the x axis in days. Defaults to 365 days (1 year).}
+\item{time.horizon}{This option shows the maximum range of each stage in days. Defaults to 365 days (1 year).}
 
 \item{main.fill.colors}{(optional) This defines the color scheme of the stage transition graphs, as a string indicator for color or a c() list of colors. If the colors contain only one color, the color scheme will automatically generate progressively faded versions of the initial color provided for the remaining stage transitions. Otherwise, a list which is exactly one fewer than the # of stages must be provided, in the order of stage trasitions.}
 
@@ -44,6 +47,8 @@ longitudinalcascade(events.long, stages.order, groups.order = NA,
 \item{risk.pool.size.line}{Setting to TRUE adds an indicator of risk pool remaining to the main charts as a line reflected beneath the main chart, showing the proportion of the original risk pool remaining at each time point. Defaults to FALSE.}
 
 \item{risk.pool.fill.color}{(optional) This defines the color scheme for the risk pool graphic, as a string indicator for color.}
+
+\item{background.prior.event}{(optional) This changes the background of the facetted chart to be the color for the prior event.}
 }
 \description{
 This package generates a longitudinal casade, including a graphical representation. This takes a long-formatted list of stage-by-stage events and transforms it into a longitudinal cascade, correcting the orders of events.
@@ -60,14 +65,14 @@ groups.order <- c("Group 1","Group 2","Group 3")
 death.indicator <- "Death"
 retention.indicator <- "Clinic visit"
 censorship.indicator <- "LTFU"
-allow.sub.lines <- TRUE
-allow.skips <- TRUE
+allow.sub.stages <- TRUE
+skip.mode <- "internal"
 
 # Create cascade object
 longitudinalcascade.sim <- longitudinalcascade(events_long,stages.order=stages.order,
 groups.order=groups.order,death.indicator=death.indicator,
 censorship.indicator=censorship.indicator,
-allow.sub.lines=allow.sub.lines,allow.skips=allow.skips)
+allow.sub.stages=allow.sub.stages,skip.mode=skip.mode)
 
 # Print/output main chart
 longitudinalcascade.sim$chart
