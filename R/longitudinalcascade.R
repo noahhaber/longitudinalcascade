@@ -264,49 +264,49 @@ longitudinalcascade <- function(events.long,stages.order,
           names(events.wide) <- gsub("stage.", "date.stage.",names(events.wide))
       }
       # Fix ordering, so that completion of a later stage indicates completion of earlier stage (and skips), and mark where this happens
-      {
-        for (stage.index in seq(length(stages.order)-1,1,-1)){
-          # Determine origin of stage events, and create variable for its origin
-            former.date.name <- paste("date.stage.",stage.index,sep="")
-            latter.date.name <- paste("date.stage.",stage.index+1,sep="")
-            former.date.origin.index.name <- paste("stage.",stage.index,".origin.index",sep="")
-            latter.date.origin.index.name <- paste("stage.",stage.index+1,".origin.index",sep="")
-          # Determine whether or not current stage is eligible for change due to there existing a subsequent stage
-            events.wide$temp_flag <- ifelse(events.wide[[latter.date.name]] < events.wide[[former.date.name]] |
-                                              is.na(events.wide[[former.date.name]])==TRUE,1,0)
-            events.wide$temp_flag <- ifelse(is.na(events.wide$temp_flag)==TRUE,0,events.wide$temp_flag)
-          # Check if this is the last event (determines whether there is an available following stage index)
-            if (stage.index==(length(stages.order)-1)){
-              # Generate on origin flag index, which = last stage if there is a change, and the current stage if there is none
-                events.wide[[former.date.origin.index.name]] <- ifelse(
-                  events.wide$temp_flag == 1,
-                  stage.index + 1, stage.index
-                )
-                events.wide[[former.date.origin.index.name]] <- ifelse(
-                  is.na(events.wide[[former.date.name]])==TRUE & is.na(events.wide[[latter.date.name]])==TRUE,
-                  NA,events.wide[[former.date.origin.index.name]])
-            } else {
-              # Generate on origin flag index, which = the corresponding flag for the next stage if there is a change, and the current stage if there is none
-                events.wide[[former.date.origin.index.name]] <- ifelse(
-                  events.wide$temp_flag == 1 & !is.na(events.wide[[latter.date.origin.index.name]]),
-                  events.wide[[latter.date.origin.index.name]],NA
-                )
-                events.wide[[former.date.origin.index.name]] <- ifelse(
-                  events.wide$temp_flag == 0,
-                  stage.index,events.wide[[former.date.origin.index.name]]
-                )
-            }
-          # Replace value of date if a change is made
-            events.wide[[paste("date.stage.",stage.index,sep="")]] <- ifelse(
-              events.wide[[paste("stage.",stage.index,".origin.index",sep="")]] == stage.index,
-              events.wide[[paste("date.stage.",stage.index,sep="")]],events.wide[[paste("date.stage.",stage.index +1,sep="")]]
-            )
-            events.wide[[paste("date.stage.",stage.index,sep="")]] <- as.Date.numeric(events.wide[[paste("date.stage.",stage.index,sep="")]])
+      for (k in 1:(length(stages.order))) {
+          for (stage.index in seq(length(stages.order)-1,1,-1)){
+            # Determine origin of stage events, and create variable for its origin
+              former.date.name <- paste("date.stage.",stage.index,sep="")
+              latter.date.name <- paste("date.stage.",stage.index+1,sep="")
+              former.date.origin.index.name <- paste("stage.",stage.index,".origin.index",sep="")
+              latter.date.origin.index.name <- paste("stage.",stage.index+1,".origin.index",sep="")
+            # Determine whether or not current stage is eligible for change due to there existing a subsequent stage
+              events.wide$temp_flag <- ifelse(events.wide[[latter.date.name]] < events.wide[[former.date.name]] |
+                                                is.na(events.wide[[former.date.name]])==TRUE,1,0)
+              events.wide$temp_flag <- ifelse(is.na(events.wide$temp_flag)==TRUE,0,events.wide$temp_flag)
+            # Check if this is the last event (determines whether there is an available following stage index)
+              if (stage.index==(length(stages.order)-1)){
+                # Generate on origin flag index, which = last stage if there is a change, and the current stage if there is none
+                  events.wide[[former.date.origin.index.name]] <- ifelse(
+                    events.wide$temp_flag == 1,
+                    stage.index + 1, stage.index
+                  )
+                  events.wide[[former.date.origin.index.name]] <- ifelse(
+                    is.na(events.wide[[former.date.name]])==TRUE & is.na(events.wide[[latter.date.name]])==TRUE,
+                    NA,events.wide[[former.date.origin.index.name]])
+              } else {
+                # Generate on origin flag index, which = the corresponding flag for the next stage if there is a change, and the current stage if there is none
+                  events.wide[[former.date.origin.index.name]] <- ifelse(
+                    events.wide$temp_flag == 1 & !is.na(events.wide[[latter.date.origin.index.name]]),
+                    events.wide[[latter.date.origin.index.name]],NA
+                  )
+                  events.wide[[former.date.origin.index.name]] <- ifelse(
+                    events.wide$temp_flag == 0,
+                    stage.index,events.wide[[former.date.origin.index.name]]
+                  )
+              }
+            # Replace value of date if a change is made
+              events.wide[[paste("date.stage.",stage.index,sep="")]] <- ifelse(
+                events.wide[[paste("stage.",stage.index,".origin.index",sep="")]] == stage.index,
+                events.wide[[paste("date.stage.",stage.index,sep="")]],events.wide[[paste("date.stage.",stage.index +1,sep="")]]
+              )
+              events.wide[[paste("date.stage.",stage.index,sep="")]] <- as.Date.numeric(events.wide[[paste("date.stage.",stage.index,sep="")]])
+          }
+          # Cleanup
+            events.wide$temp_flag <- NULL
+            for (i in 1:(length(stages.order)-1)){ events.wide[[paste("stage.",i,".origin.index",sep="")]] <- NULL}
         }
-        # Cleanup
-          events.wide$temp_flag <- NULL
-          for (i in 1:(length(stages.order)-1)){ events.wide[[paste("stage.",i,".origin.index",sep="")]] <- NULL}
-      }
       # Generate time-based groups if time breaks are specified
       if (!anyNA(groups.date.breaks)){
         # Generate group names from breaks
