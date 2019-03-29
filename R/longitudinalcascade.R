@@ -12,6 +12,7 @@
 #' @param groups.date.breaks (optional) If groups.date.breaks is filled in, the grouping will be defined by date range of entry event for each transition, rather than groups of individuals. Each transition will independently determine its own groups, based on the time in which the entrance event occurs. Times are determined by a vector of date breaks. Each group is defined as starting from a given date break value and continuing until it reaches the subsequent date break, not including data from that ending break value. For example, setting the break values to be January 1, 2011, January 1, 2012, and January 1, 2013 will create two groups. The first group will take individuals who entered each stage from January 1, 2011 to Dec 31, 2011, and the second will take individuals who entered into the stage from January 1, 2012 to Dec 31, 2012.
 #' @param death.indicator (optional) This parameter is the string which indicates a death event in the dataset. If specified, between-stage mortality will be estimated and shown as a KM curve on the top of the chart(s). If left blank, death events will not be estimated.
 #' @param censorship.indicator (optional) This parameter is the string which indicates a right-censorship event. Most commonly, this will indicate permanent loss to follow up and/or end of data collection.
+#' @param censorship.date (optional) By default, censorship is set to the last date of data collection. If you would prefer to set a different date than that, enter it into censorship.date argument as a date.
 #' @param allow.sub.stages Sub-lines indicate subsequent transitions across the cascade. If TRUE, the main chart will show transitions to all possible subsequent events. For example, if there are 4 stages (1-4), the leftmost chart will show each transition from 1-2, 1-3, and 1-4, while the next chart will show 2-3 and 2-4, and the last chart will show only 3-4. If FALSE, the charts will only show transition to the subsequent stage.
 #' @param allow.sub.stage.mortality Sub-stage-mortality indicate subsequent mortality transitions across the cascade. If TRUE, the main chart will show transitions to all possible subsequent events. For example, if there are 4 stages (1-4), the leftmost chart will show each transition from 1-2, 1-3, and 1-4, while the next chart will show 2-3 and 2-4, and the last chart will show only 3-4. If FALSE, the charts will only show transition to the subsequent stage.
 #' @param skip.mode This option shows "skips" across the cascade in each chart, as indicated by the y intercept. If "none" (default) each stage will start only with people who have not moved on to a subsequent stage, i.e. the y intercept will always be 0. If set to "internal" an individual can enter into a stage even if they have "skipped" through it. For example, an individual may go straight from stage 1 to stage 3, skipping 2. If this indicator is FALSE, the stage transition chart from 2-3 will not contain this individual in the denomenator. If TRUE, this individual will be counted in the denomenator for this transition, but will be counted as having transitioned into stage 3 immediately upon entering stage 2. If "external" individuals contribute person-time and are in the y-axis of transitions even prior to their first recorded stage date.
@@ -22,9 +23,10 @@
 #' @param death.fill.color (optional) This defines the color scheme for the death stage transition, as a string indicator for color.
 #' @param risk.pool.fill.color (optional) This defines the color scheme for the risk pool graphic, as a string indicator for color.
 #' @param background.prior.event (optional) This changes the background of the facetted chart to be the color for the prior event.
-#' @import survival ggplot2 dplyr tidyr zoo scales grDevices lubridate
+#' @import survival ggplot2 dplyr tidyr zoo scales grDevices
 #' @importFrom stats relevel
 #' @importFrom rlang .data
+#' @importFrom lubridate is.Date
 #' @export
 #' @references Haber et al. (2017) Lancet HIV 4(5):e223-e230
 #' (\href{https://www.ncbi.nlm.nih.gov/pubmed/28153470}{PubMed})
@@ -227,269 +229,215 @@ longitudinalcascade <- function(events.long,stages.order,
       )
     }
   }
-  # Data wrangling
+  # Generate main wide dataset
   {
-    # Generate main wide dataset
+    # Dataset cleanup
     {
-      # Transform data into wide form
-      {
-        # Preserve data
-          events.long.orig <- events.long
-        # Generate stage names
-          stages <- as.data.frame(matrix(c(stages.order,paste(rep("stage"),as.character(seq(1:length(stages.order))),sep="."),1:length(stages.order)),ncol=3),stringsAsFactors=FALSE)
-          colnames(stages) <- c("stage","stage.number","stage.index")
-        # Replace stages with an index for stages
-          events.long <- merge(events.long,stages,by="stage")
-          events.long <- events.long[,!(names(events.long) %in% c("stage"))]
-          events.long <- events.long[order(events.long$stage.number),]
-          events.long$stage.index <- NULL
-        # Generate a single "group" if groups are not specified
-          groups.order.orig <- groups.order
-          if (anyNA(groups.order)) {
-            events.long$group <- "All observations"
-            groups.order <- c("All observations")
-          } else{}
-        # Generate separated wide list of stage events
-          events.wide <- events.long %>%
-            tidyr::spread(.data$stage.number, date)
-        # Preserve original dates and record which is the first actual recorded event in the data
-          events.wide$first.recorded.stage <- NA
-          for (i in 1:(nrow(stages))){
-            events.wide[[paste0("orig.stage.",i)]] <- events.wide[[paste0("stage.",i)]]
-            if(length(events.wide[!is.na(events.wide[[paste0("stage.",i)]]) & is.na(events.wide$first.recorded.stage),]$first.recorded.stage)!=0){
-              events.wide[!is.na(events.wide[[paste0("stage.",i)]]) & is.na(events.wide$first.recorded.stage),]$first.recorded.stage  <- i
-            } else {}
-          }
-        # Replace names with "date"
-          names(events.wide) <- gsub("stage.", "date.stage.",names(events.wide))
-      }
-      # Fix ordering, so that completion of a later stage indicates completion of earlier stage (and skips), and mark where this happens
-      for (k in 1:(length(stages.order))) {
-          for (stage.index in seq(length(stages.order)-1,1,-1)){
-            # Determine origin of stage events, and create variable for its origin
-              former.date.name <- paste("date.stage.",stage.index,sep="")
-              latter.date.name <- paste("date.stage.",stage.index+1,sep="")
-              former.date.origin.index.name <- paste("stage.",stage.index,".origin.index",sep="")
-              latter.date.origin.index.name <- paste("stage.",stage.index+1,".origin.index",sep="")
-            # Determine whether or not current stage is eligible for change due to there existing a subsequent stage
-              events.wide$temp_flag <- ifelse(events.wide[[latter.date.name]] < events.wide[[former.date.name]] |
-                                                is.na(events.wide[[former.date.name]])==TRUE,1,0)
-              events.wide$temp_flag <- ifelse(is.na(events.wide$temp_flag)==TRUE,0,events.wide$temp_flag)
-            # Check if this is the last event (determines whether there is an available following stage index)
-              if (stage.index==(length(stages.order)-1)){
-                # Generate on origin flag index, which = last stage if there is a change, and the current stage if there is none
-                  events.wide[[former.date.origin.index.name]] <- ifelse(
-                    events.wide$temp_flag == 1,
-                    stage.index + 1, stage.index
-                  )
-                  events.wide[[former.date.origin.index.name]] <- ifelse(
-                    is.na(events.wide[[former.date.name]])==TRUE & is.na(events.wide[[latter.date.name]])==TRUE,
-                    NA,events.wide[[former.date.origin.index.name]])
-              } else {
-                # Generate on origin flag index, which = the corresponding flag for the next stage if there is a change, and the current stage if there is none
-                  events.wide[[former.date.origin.index.name]] <- ifelse(
-                    events.wide$temp_flag == 1 & !is.na(events.wide[[latter.date.origin.index.name]]),
-                    events.wide[[latter.date.origin.index.name]],NA
-                  )
-                  events.wide[[former.date.origin.index.name]] <- ifelse(
-                    events.wide$temp_flag == 0,
-                    stage.index,events.wide[[former.date.origin.index.name]]
-                  )
-              }
-            # Replace value of date if a change is made
-              events.wide[[paste("date.stage.",stage.index,sep="")]] <- ifelse(
-                events.wide[[paste("stage.",stage.index,".origin.index",sep="")]] == stage.index,
-                events.wide[[paste("date.stage.",stage.index,sep="")]],events.wide[[paste("date.stage.",stage.index +1,sep="")]]
-              )
-              events.wide[[paste("date.stage.",stage.index,sep="")]] <- as.Date.numeric(events.wide[[paste("date.stage.",stage.index,sep="")]])
-          }
-          # Cleanup
-            events.wide$temp_flag <- NULL
-            for (i in 1:(length(stages.order)-1)){ events.wide[[paste("stage.",i,".origin.index",sep="")]] <- NULL}
+      # Preserve original data
+        events.long.orig <- events.long
+      # Write list of columns to keep
+        cols.to.keep <- c("ID","stage","date")
+        if (!is.na(groups.order)) {cols.to.keep <- c(cols.to.keep,"group")}
+      # Strip out any columns that are not relevant
+        events.long <- events.long[cols.to.keep]
+    }
+    # Transform data into wide form
+    {
+      # Generate stage names
+        stages <- as.data.frame(matrix(c(stages.order,paste(rep("stage"),as.character(seq(1:length(stages.order))),sep="."),1:length(stages.order)),ncol=3),stringsAsFactors=FALSE)
+        colnames(stages) <- c("stage","stage.number","stage.index")
+      # Replace stages with an index for stages
+        events.long <- merge(events.long,stages,by="stage")
+        events.long <- events.long[,!(names(events.long) %in% c("stage"))]
+        events.long <- events.long[order(events.long$stage.number),]
+        events.long$stage.index <- NULL
+      # Generate a single "group" if groups are not specified
+        groups.order.orig <- groups.order
+        if (anyNA(groups.order)) {
+          events.long$group <- "All observations"
+          groups.order <- c("All observations")
+        } else{}
+      # Generate separated wide list of stage events
+        events.wide <- events.long %>%
+          tidyr::spread(.data$stage.number, date)
+      # Preserve original dates and record which is the first actual recorded event in the data
+        events.wide$first.recorded.stage <- NA
+        for (i in 1:(nrow(stages))){
+          events.wide[[paste0("orig.stage.",i)]] <- events.wide[[paste0("stage.",i)]]
+          if(length(events.wide[!is.na(events.wide[[paste0("stage.",i)]]) & is.na(events.wide$first.recorded.stage),]$first.recorded.stage)!=0){
+            events.wide[!is.na(events.wide[[paste0("stage.",i)]]) & is.na(events.wide$first.recorded.stage),]$first.recorded.stage  <- i
+          } else {}
         }
-      # Generate time-based groups if time breaks are specified
-      if (!anyNA(groups.date.breaks)){
-        # Generate group names from breaks
-          groups.order <- c(paste0(as.character(groups.date.breaks[1])," to ",as.character(groups.date.breaks[2]-1)))
-          for (i in 2:(length(groups.date.breaks)-1)){
-            groups.order <- c(groups.order,paste0(as.character(groups.date.breaks[i])," to ",as.character(groups.date.breaks[i+1]-1)))
-          }
-        # Generate grouping for each event except the last to determine whether the start event is within time breaks
-          for (stage.index in 1:(length(stages.order)-1)){
-            events.wide[[paste0("date.stage.",stage.index,".group")]] <- NA
-            for (break.index in 1:(length(groups.date.breaks)-1)){
-              events.wide[[paste0("date.stage.",stage.index,".group")]] <- ifelse(
-                (events.wide[[paste0("date.stage.",stage.index)]] >= groups.date.breaks[break.index]) & (events.wide[[paste0("date.stage.",stage.index)]] < groups.date.breaks[break.index+1]),
-                groups.order[break.index],
-                events.wide[[paste0("date.stage.",stage.index,".group")]])
+      # Replace names with "date"
+        names(events.wide) <- gsub("stage.", "date.stage.",names(events.wide))
+    }
+    # Fix ordering, so that completion of a later stage indicates completion of earlier stage (and skips), and mark where this happens
+    for (k in 1:(length(stages.order))) {
+        for (stage.index in seq(length(stages.order)-1,1,-1)){
+          # Determine origin of stage events, and create variable for its origin
+            former.date.name <- paste("date.stage.",stage.index,sep="")
+            latter.date.name <- paste("date.stage.",stage.index+1,sep="")
+            former.date.origin.index.name <- paste("stage.",stage.index,".origin.index",sep="")
+            latter.date.origin.index.name <- paste("stage.",stage.index+1,".origin.index",sep="")
+          # Determine whether or not current stage is eligible for change due to there existing a subsequent stage
+            events.wide$temp_flag <- ifelse(events.wide[[latter.date.name]] < events.wide[[former.date.name]] |
+                                              is.na(events.wide[[former.date.name]])==TRUE,1,0)
+            events.wide$temp_flag <- ifelse(is.na(events.wide$temp_flag)==TRUE,0,events.wide$temp_flag)
+          # Check if this is the last event (determines whether there is an available following stage index)
+            if (stage.index==(length(stages.order)-1)){
+              # Generate on origin flag index, which = last stage if there is a change, and the current stage if there is none
+                events.wide[[former.date.origin.index.name]] <- ifelse(
+                  events.wide$temp_flag == 1,
+                  stage.index + 1, stage.index
+                )
+                events.wide[[former.date.origin.index.name]] <- ifelse(
+                  is.na(events.wide[[former.date.name]])==TRUE & is.na(events.wide[[latter.date.name]])==TRUE,
+                  NA,events.wide[[former.date.origin.index.name]])
+            } else {
+              # Generate on origin flag index, which = the corresponding flag for the next stage if there is a change, and the current stage if there is none
+                events.wide[[former.date.origin.index.name]] <- ifelse(
+                  events.wide$temp_flag == 1 & !is.na(events.wide[[latter.date.origin.index.name]]),
+                  events.wide[[latter.date.origin.index.name]],NA
+                )
+                events.wide[[former.date.origin.index.name]] <- ifelse(
+                  events.wide$temp_flag == 0,
+                  stage.index,events.wide[[former.date.origin.index.name]]
+                )
             }
+          # Replace value of date if a change is made
+            events.wide[[paste("date.stage.",stage.index,sep="")]] <- ifelse(
+              events.wide[[paste("stage.",stage.index,".origin.index",sep="")]] == stage.index,
+              events.wide[[paste("date.stage.",stage.index,sep="")]],events.wide[[paste("date.stage.",stage.index +1,sep="")]]
+            )
+            events.wide[[paste("date.stage.",stage.index,sep="")]] <- as.Date.numeric(events.wide[[paste("date.stage.",stage.index,sep="")]])
+        }
+        # Cleanup
+          events.wide$temp_flag <- NULL
+          for (i in 1:(length(stages.order)-1)){ events.wide[[paste("stage.",i,".origin.index",sep="")]] <- NULL}
+      }
+    # Generate time-based groups if time breaks are specified
+    if (!anyNA(groups.date.breaks)){
+      # Generate group names from breaks
+        groups.order <- c(paste0(as.character(groups.date.breaks[1])," to ",as.character(groups.date.breaks[2]-1)))
+        for (i in 2:(length(groups.date.breaks)-1)){
+          groups.order <- c(groups.order,paste0(as.character(groups.date.breaks[i])," to ",as.character(groups.date.breaks[i+1]-1)))
+        }
+      # Generate grouping for each event except the last to determine whether the start event is within time breaks
+        for (stage.index in 1:(length(stages.order)-1)){
+          events.wide[[paste0("date.stage.",stage.index,".group")]] <- NA
+          for (break.index in 1:(length(groups.date.breaks)-1)){
             events.wide[[paste0("date.stage.",stage.index,".group")]] <- ifelse(
-              is.na(events.wide[[paste0("date.stage.",stage.index,".group")]]),
-              "No group membership",
+              (events.wide[[paste0("date.stage.",stage.index)]] >= groups.date.breaks[break.index]) & (events.wide[[paste0("date.stage.",stage.index)]] < groups.date.breaks[break.index+1]),
+              groups.order[break.index],
               events.wide[[paste0("date.stage.",stage.index,".group")]])
           }
-      } else{}
-      # Determine dates of death and censorship, and add to dataset
-      {
-        # Merge in death events (if any)
-        if (!is.na(death.indicator)){
-          events.death <- subset(events.long.orig,events.long.orig$stage==death.indicator)
-          events.death <- events.death[c("ID","date")]
-          colnames(events.death) <- c("ID","date.death")
-          events.wide <- merge(events.wide,events.death,by="ID",all.x = TRUE)
+          events.wide[[paste0("date.stage.",stage.index,".group")]] <- ifelse(
+            is.na(events.wide[[paste0("date.stage.",stage.index,".group")]]),
+            "No group membership",
+            events.wide[[paste0("date.stage.",stage.index,".group")]])
         }
-        # Merge in censorship events (if any)
-        if (!is.na(censorship.indicator)){
-          events.censorship <- subset(events.long.orig,events.long.orig$stage==censorship.indicator)
-          events.censorship <- events.censorship[c("ID","date")]
-          colnames(events.censorship) <- c("ID","date.censorship")
-          events.wide <- merge(events.wide,events.censorship,by="ID",all.x = TRUE)
+    } else{}
+    # Determine dates of death and censorship, and add to dataset
+    {
+      # Merge in death events (if any)
+      if (!is.na(death.indicator)){
+        events.death <- subset(events.long.orig,events.long.orig$stage==death.indicator)
+        events.death <- events.death[c("ID","date")]
+        colnames(events.death) <- c("ID","date.death")
+        events.wide <- merge(events.wide,events.death,by="ID",all.x = TRUE)
+      }
+      # Merge in censorship events (if any)
+      if (!is.na(censorship.indicator)){
+        events.censorship <- subset(events.long.orig,events.long.orig$stage==censorship.indicator)
+        events.censorship <- events.censorship[c("ID","date")]
+        colnames(events.censorship) <- c("ID","date.censorship")
+        events.wide <- merge(events.wide,events.censorship,by="ID",all.x = TRUE)
+      } else {
+        events.wide$date.censorship <- as.Date(NA)
+      }
+      # Add in date of censorship based on end of data collection (if option checked)
+        last.date <- max(events.long.orig$date)
+        if (lubridate::is.Date(censorship.date)){
+          events.wide$date.censorship <- ifelse(is.na(events.wide$date.censorship),
+                                                censorship.date,events.wide$date.censorship)
+        } else if (censorship.date == "lastdate") {
+          events.wide$date.censorship <- ifelse(is.na(events.wide$date.censorship),
+                                                last.date,events.wide$date.censorship)
         } else {
-          events.wide$date.censorship <- as.Date(NA)
+          stop("Incompatible date for censorship. Use a date format or specify 'lastdate'")
         }
-        # Add in date of censorship based on end of data collection (if option checked)
-          last.date <- max(events.long.orig$date)
-          if (lubridate::is.Date(censorship.date)){
-            events.wide[is.na(events.wide$date.censorship),] <- censorship.date
-          } else if (censorship.date == "lastdate") {
-            events.wide[is.na(events.wide$date.censorship),]$date.censorship <- last.date
-          } else {
-            stop("Incompatible date for censorship. Use a date format or specify 'lastdate'")
-          }
-        # Assume that if date of death exists and occurs after censorship event, censorship is false and replace with NA
-        if (!is.na(censorship.indicator) & (!is.na(death.indicator))){
-          events.wide$date.censorship <- ifelse((events.wide$date.censorship < events.wide$date.death) & (is.na(events.wide$date.death)==FALSE) & (is.na(events.wide$date.censorship)==FALSE),
-                                                NA,events.wide$date.censorship)
+        events.wide$date.censorship <- as.Date.numeric(events.wide$date.censorship)
+      # Assume that if date of death exists and occurs after censorship event, censorship is false and replace with NA
+      if (!is.na(censorship.indicator) & (!is.na(death.indicator))){
+        events.wide$date.censorship <- ifelse((events.wide$date.censorship < events.wide$date.death) & (is.na(events.wide$date.death)==FALSE) & (is.na(events.wide$date.censorship)==FALSE),
+                                              NA,events.wide$date.censorship)
+        events.wide$date.censorship <- as.Date.numeric(events.wide$date.censorship)
+      }
+      # Deal with scenarios where censorship event occurs on or before stage event, by assuming censorship is false, and sets it to the last date
+        for (i in 1:(length(stages.order))){
+          events.wide$date.censorship <- ifelse((events.wide$date.censorship < events.wide[[paste0("date.stage.",i)]]) & !is.na(events.wide[[paste0("date.stage.",i)]]) & (!is.na(events.wide$date.censorship)),
+                                              last.date,events.wide$date.censorship)
           events.wide$date.censorship <- as.Date.numeric(events.wide$date.censorship)
         }
-      }
-      # Generate dataset for recording TTE data
-      {
-        TTE <- events.wide %>%
-          select("ID",ends_with("group"))
-      }
     }
-    # Create stage-by-stage events and survival
+    # Generate dataset for recording TTE data
     {
-      # Function for generating survival curves
-        stage.survival.run <- function(start.stage.index,group.index,run.type="main") {
-          # Determine if individual is eligible for contributing person-time to transition frame
-          {
-            events.wide$eligible <- 1
-            # Remove if individual has no date for the starting event
-              events.wide$eligible <- ifelse(is.na(events.wide[[paste0("date.stage.",start.stage.index)]]),
-                                             0,events.wide$eligible)
-            # Determine correct group column to apply given settings
-              if (!anyNA(groups.date.breaks)){
-                reference.group <- paste0("date.stage.",start.stage.index,".group")
-              } else {reference.group <- "group" }
-            # Remove if in wrong group
-              events.wide$eligible <- ifelse(events.wide$eligible == 1 & events.wide[[reference.group]]!=groups.order[group.index],
-                                             0,events.wide$eligible)
-            # Apply skip rules
-              # No skipping (remove anyone who has already moved to a subsequent phase)
-                if (skip.mode=="none"){
-                  events.wide$eligible <- ifelse(events.wide$eligible == 1 & !is.na(events.wide[[paste0("date.stage.",start.stage.index + 1)]]) & (events.wide[[paste0("date.stage.",start.stage.index + 1)]] <= events.wide[[paste0("date.stage.",start.stage.index)]]),
-                                                 0,events.wide$eligible)
-                } else {}
-              # Internal skips only (remove people for whom the recorded event was not the first recorded event)
-                if (skip.mode=="internal"){
-                  events.wide$eligible <- ifelse(events.wide$first.recorded.stage > start.stage.index,
-                                                 0,events.wide$eligible)
-                } else {}
-          }
-          # Apply survival functions for events
-          {
-            # Main stage transitions
-            if (run.type == "main") {
-              # Function for stats for all stage transitions
-                surv.stats.main.stages <- function(df.surv,start.stage.index,end.stage.index,group.index){
-                # Assign start date
-                  df.surv$start.date <- df.surv[[paste0("date.stage.",start.stage.index)]]
-                # Determine time to event and censorship
-                    df.surv$endpoint <- 0
-                    df.surv$end.date <- as.Date(NA)
-                    df.surv$censorship <- NA
-                  # Option 1: Main next stage event occurs
-                    df.surv$endpoint <- ifelse(!is.na(df.surv[[paste0("date.stage.",end.stage.index)]]),
-                                               1,df.surv$endpoint)
-                    df.surv[df.surv$endpoint==1,]$end.date <- df.surv[df.surv$endpoint==1,][[paste0("date.stage.",end.stage.index)]]
-                    df.surv[df.surv$endpoint==1,]$censorship <- rep(0,sum(df.surv$endpoint==1))
-                  # Option 2: If endpoint is never reached, check if death occurs
-                    if (!is.na(death.indicator)){
-                      df.surv$endpoint <- ifelse(df.surv$endpoint==0 & !is.na(df.surv$date.death),
-                                                                              2,df.surv$endpoint)
-                    }
-                    df.surv[df.surv$endpoint==2,]$end.date <- df.surv[df.surv$endpoint==2,]$start.date + time.horizon
-                    df.surv[df.surv$endpoint==2,]$censorship <- rep(1,sum(df.surv$endpoint==2))
-                  # Option 3: Otherwise, use the censorship date
-                    df.surv$endpoint <- ifelse(df.surv$endpoint==0,3,df.surv$endpoint)
-                    df.surv[df.surv$endpoint==3,]$end.date <- df.surv[df.surv$endpoint==3,]$date.censorship
-                    df.surv[df.surv$endpoint==3,]$censorship <- rep(1,sum(df.surv$endpoint==3))
-                  # Revise events which occur after the time horizon of interest to the time horizon, and change to censorship
-                    df.surv$endpoint <- ifelse((df.surv$end.date - df.surv$start.date) > time.horizon,
-                                               4,df.surv$endpoint)
-                    df.surv[df.surv$endpoint==4,]$end.date <- df.surv[df.surv$endpoint==4,]$start.date + time.horizon
-                    df.surv[df.surv$endpoint==4,]$censorship <- rep(1,sum(df.surv$endpoint==4))
-                  # Get time to event
-                    df.surv$time.to.event <- df.surv$end.date-df.surv$start.date
-                  # Generate TTE dataset output and merge with larger dataset
-                    colname.tte <- paste0("time.stage.",start.stage.index,".to.",end.stage.index)
-                    colname.censorship <- paste0("censorship.stage.",start.stage.index,".to.",end.stage.index)
-                    df.surv[[colname.tte]] <- df.surv$time.to.event
-                    df.surv[[colname.censorship]] <- df.surv$censorship
-                    TTE.temp <- df.surv[c("ID",colname.tte,colname.censorship)]
-                    TTE <<- merge(TTE,TTE.temp,by="ID",all.x=TRUE,all.y=FALSE)
-                    if (length(TTE[[paste0(colname.tte,".x")]])!=0){
-                      TTE[[colname.tte]] <<- ifelse(is.na(TTE[[paste0(colname.tte,".x")]]),
-                                                    TTE[[paste0(colname.tte,".y")]],TTE[[paste0(colname.tte,".x")]])
-                      TTE[[colname.censorship]] <<- ifelse(is.na(TTE[[paste0(colname.censorship,".x")]]),
-                                                    TTE[[paste0(colname.censorship,".y")]],TTE[[paste0(colname.censorship,".x")]])
-                      TTE[[paste0(colname.tte,".x")]] <<- NULL
-                      TTE[[paste0(colname.tte,".y")]] <<- NULL
-                      TTE[[paste0(colname.censorship,".x")]] <<- NULL
-                      TTE[[paste0(colname.censorship,".y")]] <<- NULL
-                    }
-                  # Pull survival curves
-                    output <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)
-                    output$start.stage.index <- start.stage.index
-                    output$end.stage.index <- end.stage.index
-                    output$group.index <- group.index
-                  # Return output
-                    return(output)
-                }
-              # Determine which stages to run
-                if (allow.sub.stages==TRUE) {
-                  end.stage.index.list <- (start.stage.index+1):(length(stages.order))
-                } else {
-                  end.stage.index.list <- (start.stage.index+1):(start.stage.index+1)
-                }
-              # Run main stages
-                surv <- do.call("rbind",lapply(end.stage.index.list,function(x)
-                  surv.stats.main.stages(events.wide[events.wide$eligible==1,],start.stage.index,x,group.index)))
-            } else {}
-            # Death stage transitions
-            if (run.type=="death") {
-              # Function for mortality stages and substages
-              surv.stats.mortality <- function(df.surv,start.stage.index,end.stage.index,group.index){
+      TTE <- events.wide %>%
+        select("ID",ends_with("group"))
+    }
+  }
+  # Create stage-by-stage events and survival
+  {
+    # Function for generating survival curves
+      stage.survival.run <- function(start.stage.index,group.index,run.type="main") {
+        # Determine if individual is eligible for contributing person-time to transition frame
+        {
+          events.wide$eligible <- 1
+          # Remove if individual has no date for the starting event
+            events.wide$eligible <- ifelse(is.na(events.wide[[paste0("date.stage.",start.stage.index)]]),
+                                           0,events.wide$eligible)
+          # Determine correct group column to apply given settings
+            if (!anyNA(groups.date.breaks)){
+              reference.group <- paste0("date.stage.",start.stage.index,".group")
+            } else {reference.group <- "group" }
+          # Remove if in wrong group
+            events.wide$eligible <- ifelse(events.wide$eligible == 1 & events.wide[[reference.group]]!=groups.order[group.index],
+                                           0,events.wide$eligible)
+          # Apply skip rules
+            # No skipping (remove anyone who has already moved to a subsequent phase)
+              if (skip.mode=="none"){
+                events.wide$eligible <- ifelse(events.wide$eligible == 1 & !is.na(events.wide[[paste0("date.stage.",start.stage.index + 1)]]) & (events.wide[[paste0("date.stage.",start.stage.index + 1)]] <= events.wide[[paste0("date.stage.",start.stage.index)]]),
+                                               0,events.wide$eligible)
+              } else {}
+            # Internal skips only (remove people for whom the recorded event was not the first recorded event)
+              if (skip.mode=="internal"){
+                events.wide$eligible <- ifelse(events.wide$first.recorded.stage > start.stage.index,
+                                               0,events.wide$eligible)
+              } else {}
+        }
+        # Apply survival functions for events
+        {
+          # Main stage transitions
+          if (run.type == "main") {
+            # Function for stats for all stage transitions
+              surv.stats.main.stages <- function(df.surv,start.stage.index,end.stage.index,group.index){
               # Assign start date
                 df.surv$start.date <- df.surv[[paste0("date.stage.",start.stage.index)]]
-                df.surv$end.stage.date <- df.surv[[paste0("date.stage.",end.stage.index)]]
-                df.surv$prev.stage.date <- df.surv[[paste0("date.stage.",end.stage.index-1)]]
               # Determine time to event and censorship
                   df.surv$endpoint <- 0
                   df.surv$end.date <- as.Date(NA)
                   df.surv$censorship <- NA
-                # Option 1: Mortality occurs after event before end stage, and end date never occurs (died before end date)
-                  df.surv$endpoint <- ifelse(!is.na(df.surv$date.death) & is.na(df.surv$end.stage.date) & !is.na(df.surv$prev.stage.date) &
-                                               (df.surv$date.death > df.surv$start.date),
+                # Option 1: Main next stage event occurs
+                  df.surv$endpoint <- ifelse(!is.na(df.surv[[paste0("date.stage.",end.stage.index)]]),
                                              1,df.surv$endpoint)
-                  df.surv[df.surv$endpoint==1,]$end.date <- df.surv[df.surv$endpoint==1,]$date.death
+                  df.surv[df.surv$endpoint==1,]$end.date <- df.surv[df.surv$endpoint==1,][[paste0("date.stage.",end.stage.index)]]
                   df.surv[df.surv$endpoint==1,]$censorship <- rep(0,sum(df.surv$endpoint==1))
-                # Option 2: Censorship occurs before time horizon reached
-                  df.surv$endpoint <- ifelse(df.surv$endpoint==0 & (df.surv$date.censorship - df.surv$start.date) < time.horizon,
-                                             2,df.surv$endpoint)
-                  df.surv[df.surv$endpoint==2,]$end.date <- df.surv[df.surv$endpoint==2,]$date.censorship
+                # Option 2: If endpoint is never reached, check if death occurs
+                  if (!is.na(death.indicator)){
+                    df.surv$endpoint <- ifelse(df.surv$endpoint==0 & !is.na(df.surv$date.death),
+                                                                            2,df.surv$endpoint)
+                  }
+                  df.surv[df.surv$endpoint==2,]$end.date <- df.surv[df.surv$endpoint==2,]$start.date + time.horizon
                   df.surv[df.surv$endpoint==2,]$censorship <- rep(1,sum(df.surv$endpoint==2))
                 # Option 3: Otherwise, use the censorship date
                   df.surv$endpoint <- ifelse(df.surv$endpoint==0,3,df.surv$endpoint)
@@ -503,8 +451,8 @@ longitudinalcascade <- function(events.long,stages.order,
                 # Get time to event
                   df.surv$time.to.event <- df.surv$end.date-df.surv$start.date
                 # Generate TTE dataset output and merge with larger dataset
-                  colname.tte <- paste0("time.stage.",start.stage.index,".to.death.",end.stage.index-1,".to.",end.stage.index)
-                  colname.censorship <- paste0("censorship.stage.",start.stage.index,".to.death.",end.stage.index-1,".to.",end.stage.index)
+                  colname.tte <- paste0("time.stage.",start.stage.index,".to.",end.stage.index)
+                  colname.censorship <- paste0("censorship.stage.",start.stage.index,".to.",end.stage.index)
                   df.surv[[colname.tte]] <- df.surv$time.to.event
                   df.surv[[colname.censorship]] <- df.surv$censorship
                   TTE.temp <- df.surv[c("ID",colname.tte,colname.censorship)]
@@ -523,97 +471,165 @@ longitudinalcascade <- function(events.long,stages.order,
                   output <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)
                   output$start.stage.index <- start.stage.index
                   output$end.stage.index <- end.stage.index
-                  output$reference.stage.index <- end.stage.index - 1
                   output$group.index <- group.index
-                # Check if this is the last stage, and if so, run one additional mortality check
-                  if (end.stage.index == length(stages.order) & allow.sub.stage.mortality==TRUE){
-                    # Assign start date
-                      df.surv$start.date <- df.surv[[paste0("date.stage.",start.stage.index)]]
-                      df.surv$end.stage.date <- df.surv[[paste0("date.stage.",end.stage.index)]]
-                    # Determine time to event and censorship
-                      df.surv$endpoint <- 0
-                      df.surv$end.date <- as.Date(NA)
-                      df.surv$censorship <- NA
-                    # Option 1: Mortality occurs after the end stage date
-                      df.surv$endpoint <- ifelse(!is.na(df.surv$date.death) & !is.na(df.surv$end.stage.date) & (df.surv$date.death > df.surv$end.stage.date),
-                                                 1,df.surv$endpoint)
-                      df.surv[df.surv$endpoint==1,]$end.date <- df.surv[df.surv$endpoint==1,]$date.death
-                      df.surv[df.surv$endpoint==1,]$censorship <- rep(0,sum(df.surv$endpoint==1))
-                    # Option 2: Censorship occurs before time horizon reached
-                      df.surv$endpoint <- ifelse(df.surv$endpoint==0 & (df.surv$date.censorship - df.surv$start.date) < time.horizon,
-                                                 2,df.surv$endpoint)
-                      df.surv[df.surv$endpoint==2,]$end.date <- df.surv[df.surv$endpoint==2,]$date.censorship
-                      df.surv[df.surv$endpoint==2,]$censorship <- rep(1,sum(df.surv$endpoint==2))
-                    # Option 3: Otherwise, use the censorship date
-                      df.surv$endpoint <- ifelse(df.surv$endpoint==0,3,df.surv$endpoint)
-                      df.surv[df.surv$endpoint==3,]$end.date <- df.surv[df.surv$endpoint==3,]$date.censorship
-                      df.surv[df.surv$endpoint==3,]$censorship <- rep(1,sum(df.surv$endpoint==3))
-                    # Revise events which occur after the time horizon of interest to the time horizon, and change to censorship
-                      df.surv$endpoint <- ifelse((df.surv$end.date - df.surv$start.date) > time.horizon,
-                                                 4,df.surv$endpoint)
-                      df.surv[df.surv$endpoint==4,]$end.date <- df.surv[df.surv$endpoint==4,]$start.date + time.horizon
-                      df.surv[df.surv$endpoint==4,]$censorship <- rep(1,sum(df.surv$endpoint==4))
-                    # Get time to event
-                      df.surv$time.to.event <- df.surv$end.date-df.surv$start.date
-                    # Generate TTE dataset output and merge with larger dataset
-                      colname.tte <- paste0("time.stage.",start.stage.index,".to.death.",end.stage.index,".to.",end.stage.index+1)
-                      colname.censorship <- paste0("censorship.stage.",start.stage.index,".to.death.",end.stage.index,".to.",end.stage.index+1)
-                      df.surv[[colname.tte]] <- df.surv$time.to.event
-                      df.surv[[colname.censorship]] <- df.surv$censorship
-                      TTE.temp <- df.surv[c("ID",colname.tte,colname.censorship)]
-                      TTE <<- merge(TTE,TTE.temp,by="ID",all.x=TRUE,all.y=FALSE)
-                      if (length(TTE[[paste0(colname.tte,".x")]])!=0){
-                        TTE[[colname.tte]] <<- ifelse(is.na(TTE[[paste0(colname.tte,".x")]]),
-                                                      TTE[[paste0(colname.tte,".y")]],TTE[[paste0(colname.tte,".x")]])
-                        TTE[[colname.censorship]] <<- ifelse(is.na(TTE[[paste0(colname.censorship,".x")]]),
-                                                      TTE[[paste0(colname.censorship,".y")]],TTE[[paste0(colname.censorship,".x")]])
-                        TTE[[paste0(colname.tte,".x")]] <<- NULL
-                        TTE[[paste0(colname.tte,".y")]] <<- NULL
-                        TTE[[paste0(colname.censorship,".x")]] <<- NULL
-                        TTE[[paste0(colname.censorship,".y")]] <<- NULL
-                      }
-                    # Pull survival curves
-                      output2 <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)
-                      output2$start.stage.index <- start.stage.index
-                      output2$end.stage.index <- end.stage.index + 1
-                      output2$reference.stage.index <- end.stage.index
-                      output2$group.index <- group.index
-                    # Merge back in with main mortality output
-                      output <- rbind(output,output2)
-                  }
                 # Return output
                   return(output)
               }
             # Determine which stages to run
-              if (allow.sub.stage.mortality==TRUE) {
+              if (allow.sub.stages==TRUE) {
                 end.stage.index.list <- (start.stage.index+1):(length(stages.order))
               } else {
                 end.stage.index.list <- (start.stage.index+1):(start.stage.index+1)
               }
-            # Run mortality stages
+            # Run main stages
               surv <- do.call("rbind",lapply(end.stage.index.list,function(x)
-                surv.stats.mortality(events.wide[events.wide$eligible==1,],start.stage.index,x,group.index)))
-            } else {}
-          }
-          # Change stages and groups to factors for easier charting
-            surv$start.stage.factor <- ordered(surv$start.stage.index,levels=c(1:(length(stages.order)-1)),
-                                                        labels = stages.order[1:(length(stages.order)-1)])
-            surv$end.stage.factor <- ordered(surv$end.stage.index,levels=c(2:(length(stages.order))),
-                                                      labels = stages.order[2:(length(stages.order))])
-            surv$group.factor <- ordered(surv$group.index,levels=c(1:(length(groups.order))),
-                                                  labels = groups.order[1:(length(groups.order))])
-          # Return data
-            return(surv)
+                surv.stats.main.stages(events.wide[events.wide$eligible==1,],start.stage.index,x,group.index)))
+          } else {}
+          # Death stage transitions
+          if (run.type=="death") {
+            # Function for mortality stages and substages
+            surv.stats.mortality <- function(df.surv,start.stage.index,end.stage.index,group.index){
+            # Assign start date
+              df.surv$start.date <- df.surv[[paste0("date.stage.",start.stage.index)]]
+              df.surv$end.stage.date <- df.surv[[paste0("date.stage.",end.stage.index)]]
+              df.surv$prev.stage.date <- df.surv[[paste0("date.stage.",end.stage.index-1)]]
+            # Determine time to event and censorship
+                df.surv$endpoint <- 0
+                df.surv$end.date <- as.Date(NA)
+                df.surv$censorship <- NA
+              # Option 1: Mortality occurs after event before end stage, and end date never occurs (died before end date)
+                df.surv$endpoint <- ifelse(!is.na(df.surv$date.death) & is.na(df.surv$end.stage.date) & !is.na(df.surv$prev.stage.date) &
+                                             (df.surv$date.death > df.surv$start.date),
+                                           1,df.surv$endpoint)
+                df.surv[df.surv$endpoint==1,]$end.date <- df.surv[df.surv$endpoint==1,]$date.death
+                df.surv[df.surv$endpoint==1,]$censorship <- rep(0,sum(df.surv$endpoint==1))
+              # Option 2: Censorship occurs before time horizon reached
+                df.surv$endpoint <- ifelse(df.surv$endpoint==0 & (df.surv$date.censorship - df.surv$start.date) < time.horizon,
+                                           2,df.surv$endpoint)
+                df.surv[df.surv$endpoint==2,]$end.date <- df.surv[df.surv$endpoint==2,]$date.censorship
+                df.surv[df.surv$endpoint==2,]$censorship <- rep(1,sum(df.surv$endpoint==2))
+              # Option 3: Otherwise, use the censorship date
+                df.surv$endpoint <- ifelse(df.surv$endpoint==0,3,df.surv$endpoint)
+                df.surv[df.surv$endpoint==3,]$end.date <- df.surv[df.surv$endpoint==3,]$date.censorship
+                df.surv[df.surv$endpoint==3,]$censorship <- rep(1,sum(df.surv$endpoint==3))
+              # Revise events which occur after the time horizon of interest to the time horizon, and change to censorship
+                df.surv$endpoint <- ifelse((df.surv$end.date - df.surv$start.date) > time.horizon,
+                                           4,df.surv$endpoint)
+                df.surv[df.surv$endpoint==4,]$end.date <- df.surv[df.surv$endpoint==4,]$start.date + time.horizon
+                df.surv[df.surv$endpoint==4,]$censorship <- rep(1,sum(df.surv$endpoint==4))
+              # Get time to event
+                df.surv$time.to.event <- df.surv$end.date-df.surv$start.date
+              # Generate TTE dataset output and merge with larger dataset
+                colname.tte <- paste0("time.stage.",start.stage.index,".to.death.",end.stage.index-1,".to.",end.stage.index)
+                colname.censorship <- paste0("censorship.stage.",start.stage.index,".to.death.",end.stage.index-1,".to.",end.stage.index)
+                df.surv[[colname.tte]] <- df.surv$time.to.event
+                df.surv[[colname.censorship]] <- df.surv$censorship
+                TTE.temp <- df.surv[c("ID",colname.tte,colname.censorship)]
+                TTE <<- merge(TTE,TTE.temp,by="ID",all.x=TRUE,all.y=FALSE)
+                if (length(TTE[[paste0(colname.tte,".x")]])!=0){
+                  TTE[[colname.tte]] <<- ifelse(is.na(TTE[[paste0(colname.tte,".x")]]),
+                                                TTE[[paste0(colname.tte,".y")]],TTE[[paste0(colname.tte,".x")]])
+                  TTE[[colname.censorship]] <<- ifelse(is.na(TTE[[paste0(colname.censorship,".x")]]),
+                                                TTE[[paste0(colname.censorship,".y")]],TTE[[paste0(colname.censorship,".x")]])
+                  TTE[[paste0(colname.tte,".x")]] <<- NULL
+                  TTE[[paste0(colname.tte,".y")]] <<- NULL
+                  TTE[[paste0(colname.censorship,".x")]] <<- NULL
+                  TTE[[paste0(colname.censorship,".y")]] <<- NULL
+                }
+              # Pull survival curves
+                output <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)
+                output$start.stage.index <- start.stage.index
+                output$end.stage.index <- end.stage.index
+                output$reference.stage.index <- end.stage.index - 1
+                output$group.index <- group.index
+              # Check if this is the last stage, and if so, run one additional mortality check
+                if (end.stage.index == length(stages.order) & allow.sub.stage.mortality==TRUE){
+                  # Assign start date
+                    df.surv$start.date <- df.surv[[paste0("date.stage.",start.stage.index)]]
+                    df.surv$end.stage.date <- df.surv[[paste0("date.stage.",end.stage.index)]]
+                  # Determine time to event and censorship
+                    df.surv$endpoint <- 0
+                    df.surv$end.date <- as.Date(NA)
+                    df.surv$censorship <- NA
+                  # Option 1: Mortality occurs after the end stage date
+                    df.surv$endpoint <- ifelse(!is.na(df.surv$date.death) & !is.na(df.surv$end.stage.date) & (df.surv$date.death > df.surv$end.stage.date),
+                                               1,df.surv$endpoint)
+                    df.surv[df.surv$endpoint==1,]$end.date <- df.surv[df.surv$endpoint==1,]$date.death
+                    df.surv[df.surv$endpoint==1,]$censorship <- rep(0,sum(df.surv$endpoint==1))
+                  # Option 2: Censorship occurs before time horizon reached
+                    df.surv$endpoint <- ifelse(df.surv$endpoint==0 & (df.surv$date.censorship - df.surv$start.date) < time.horizon,
+                                               2,df.surv$endpoint)
+                    df.surv[df.surv$endpoint==2,]$end.date <- df.surv[df.surv$endpoint==2,]$date.censorship
+                    df.surv[df.surv$endpoint==2,]$censorship <- rep(1,sum(df.surv$endpoint==2))
+                  # Option 3: Otherwise, use the censorship date
+                    df.surv$endpoint <- ifelse(df.surv$endpoint==0,3,df.surv$endpoint)
+                    df.surv[df.surv$endpoint==3,]$end.date <- df.surv[df.surv$endpoint==3,]$date.censorship
+                    df.surv[df.surv$endpoint==3,]$censorship <- rep(1,sum(df.surv$endpoint==3))
+                  # Revise events which occur after the time horizon of interest to the time horizon, and change to censorship
+                    df.surv$endpoint <- ifelse((df.surv$end.date - df.surv$start.date) > time.horizon,
+                                               4,df.surv$endpoint)
+                    df.surv[df.surv$endpoint==4,]$end.date <- df.surv[df.surv$endpoint==4,]$start.date + time.horizon
+                    df.surv[df.surv$endpoint==4,]$censorship <- rep(1,sum(df.surv$endpoint==4))
+                  # Get time to event
+                    df.surv$time.to.event <- df.surv$end.date-df.surv$start.date
+                  # Generate TTE dataset output and merge with larger dataset
+                    colname.tte <- paste0("time.stage.",start.stage.index,".to.death.",end.stage.index,".to.",end.stage.index+1)
+                    colname.censorship <- paste0("censorship.stage.",start.stage.index,".to.death.",end.stage.index,".to.",end.stage.index+1)
+                    df.surv[[colname.tte]] <- df.surv$time.to.event
+                    df.surv[[colname.censorship]] <- df.surv$censorship
+                    TTE.temp <- df.surv[c("ID",colname.tte,colname.censorship)]
+                    TTE <<- merge(TTE,TTE.temp,by="ID",all.x=TRUE,all.y=FALSE)
+                    if (length(TTE[[paste0(colname.tte,".x")]])!=0){
+                      TTE[[colname.tte]] <<- ifelse(is.na(TTE[[paste0(colname.tte,".x")]]),
+                                                    TTE[[paste0(colname.tte,".y")]],TTE[[paste0(colname.tte,".x")]])
+                      TTE[[colname.censorship]] <<- ifelse(is.na(TTE[[paste0(colname.censorship,".x")]]),
+                                                    TTE[[paste0(colname.censorship,".y")]],TTE[[paste0(colname.censorship,".x")]])
+                      TTE[[paste0(colname.tte,".x")]] <<- NULL
+                      TTE[[paste0(colname.tte,".y")]] <<- NULL
+                      TTE[[paste0(colname.censorship,".x")]] <<- NULL
+                      TTE[[paste0(colname.censorship,".y")]] <<- NULL
+                    }
+                  # Pull survival curves
+                    output2 <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)
+                    output2$start.stage.index <- start.stage.index
+                    output2$end.stage.index <- end.stage.index + 1
+                    output2$reference.stage.index <- end.stage.index
+                    output2$group.index <- group.index
+                  # Merge back in with main mortality output
+                    output <- rbind(output,output2)
+                }
+              # Return output
+                return(output)
+            }
+          # Determine which stages to run
+            if (allow.sub.stage.mortality==TRUE) {
+              end.stage.index.list <- (start.stage.index+1):(length(stages.order))
+            } else {
+              end.stage.index.list <- (start.stage.index+1):(start.stage.index+1)
+            }
+          # Run mortality stages
+            surv <- do.call("rbind",lapply(end.stage.index.list,function(x)
+              surv.stats.mortality(events.wide[events.wide$eligible==1,],start.stage.index,x,group.index)))
+          } else {}
         }
-      # Generate survival functions for all combinatorials of events
-        comb <- expand.grid(stages = 1:(length(stages.order)-1),groups = 1:(length(groups.order)))
-      # Run all specified transitions
-        surv.main <- do.call("rbind",mapply(stage.survival.run,start.stage.index = comb$stages,group.index = comb$groups,SIMPLIFY = FALSE))
-        if (!is.na(death.indicator)){
-          comb$run.type <- "death"
-          surv.death <- do.call("rbind",mapply(stage.survival.run,start.stage.index = comb$stages,group.index = comb$groups,run.type = comb$run.type,SIMPLIFY = FALSE))
-        } else {}
-    }
+        # Change stages and groups to factors for easier charting
+          surv$start.stage.factor <- ordered(surv$start.stage.index,levels=c(1:(length(stages.order)-1)),
+                                                      labels = stages.order[1:(length(stages.order)-1)])
+          surv$end.stage.factor <- ordered(surv$end.stage.index,levels=c(2:(length(stages.order))),
+                                                    labels = stages.order[2:(length(stages.order))])
+          surv$group.factor <- ordered(surv$group.index,levels=c(1:(length(groups.order))),
+                                                labels = groups.order[1:(length(groups.order))])
+        # Return data
+          return(surv)
+      }
+    # Generate survival functions for all combinatorials of events
+      comb <- expand.grid(stages = 1:(length(stages.order)-1),groups = 1:(length(groups.order)))
+    # Run all specified transitions
+      surv.main <- do.call("rbind",mapply(stage.survival.run,start.stage.index = comb$stages,group.index = comb$groups,SIMPLIFY = FALSE))
+      if (!is.na(death.indicator)){
+        comb$run.type <- "death"
+        surv.death <- do.call("rbind",mapply(stage.survival.run,start.stage.index = comb$stages,group.index = comb$groups,run.type = comb$run.type,SIMPLIFY = FALSE))
+      } else {}
   }
   # Generate chart graphics
   {

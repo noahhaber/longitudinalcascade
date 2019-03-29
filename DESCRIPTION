@@ -1,6 +1,6 @@
 Package: longitudinalcascade
 Title: Longitudinal Cascade
-Version: 0.1.2.1
+Version: 0.2.1.1
 Authors@R: 
     person(given = "Noah",
            family = "Haber",
@@ -10,5 +10,5 @@ Description: Creates a series of set of graphics and statistics related to the l
 License:  MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
-Imports: dplyr,survival,ggplot2,tidyr,zoo,scales,grDevices,stats,rlang
+Imports: dplyr,survival,ggplot2,tidyr,zoo,scales,grDevices,stats,rlang,lubridate
 RoxygenNote: 6.1.1
