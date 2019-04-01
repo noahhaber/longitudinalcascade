@@ -10,6 +10,7 @@
 #' @param stages.order (required) stages.order is the parameter which defines the events to be considered in the main cascade and their order. This is a vector of strings matching items in the "Stage" column of the main data frame, e.g. c("Stage 1","Stage 2","Stage 3").
 #' @param groups.order (optional) This is a vector of groups, matching the "group" column of the main data frame. If left blank, no group comparisons will be performed. For the chart, each group will have its own row.
 #' @param groups.date.breaks (optional) If groups.date.breaks is filled in, the grouping will be defined by date range of entry event for each transition, rather than groups of individuals. Each transition will independently determine its own groups, based on the time in which the entrance event occurs. Times are determined by a vector of date breaks. Each group is defined as starting from a given date break value and continuing until it reaches the subsequent date break, not including data from that ending break value. For example, setting the break values to be January 1, 2011, January 1, 2012, and January 1, 2013 will create two groups. The first group will take individuals who entered each stage from January 1, 2011 to Dec 31, 2011, and the second will take individuals who entered into the stage from January 1, 2012 to Dec 31, 2012.
+#' @param groups.date.breaks.labels (optional) Changes the default labelling of the groups when you are using date break groupings. Entered as a vector of strings, and must be the same length as the number of groups.
 #' @param death.indicator (optional) This parameter is the string which indicates a death event in the dataset. If specified, between-stage mortality will be estimated and shown as a KM curve on the top of the chart(s). If left blank, death events will not be estimated.
 #' @param censorship.indicator (optional) This parameter is the string which indicates a right-censorship event. Most commonly, this will indicate permanent loss to follow up and/or end of data collection.
 #' @param censorship.date (optional) By default, censorship is set to the last date of data collection. If you would prefer to set a different date than that, enter it into censorship.date argument as a date.
@@ -43,7 +44,6 @@
 #' retention.indicator <- "Clinic visit"
 #' censorship.indicator <- "LTFU"
 #' allow.sub.stages <- TRUE
-#' skip.mode <- "internal"
 #'
 #' # Create cascade object
 #' longitudinalcascade.sim <- longitudinalcascade(events_long,stages.order=stages.order,
@@ -51,7 +51,7 @@
 #' censorship.indicator=censorship.indicator,
 #' allow.sub.stages=allow.sub.stages,skip.mode=skip.mode)
 #'
-#' # Print/output main chart
+#' # Print/output main multipanel chart
 #' longitudinalcascade.sim$chart
 #' # Output full survival dataset generated, as a data frame
 #' df.longitudainalcascade.survival <- longitudinalcascade.sim$surv.dataset
@@ -63,29 +63,24 @@
 #' df.events.wide <- longitudinalcascade.sim$events.wide
 
 longitudinalcascade <- function(events.long,stages.order,
-                         groups.order=NA,groups.date.breaks=NA,
+                         groups.order=NA,groups.date.breaks=NA,groups.date.breaks.labels=NA,
                          death.indicator=NA,censorship.indicator=NA,censorship.date = "lastdate",
                          allow.sub.stages=FALSE,allow.sub.stage.mortality=FALSE,
                          skip.mode="none",
                          time.horizon=365,
                          main.fill.colors = "#4472C4",death.fill.color = "#FF6A6A",
                          nochart=FALSE,risk.pool.size.line=FALSE,
-                         risk.pool.fill.color = "#90dbb2",background.prior.event=TRUE) {
+                         risk.pool.fill.color = "#90dbb2",background.prior.event=TRUE,
+                         suppress.warnings = FALSE) {
 
-  # Check settings to make sure compatible, give an error, warning, and/or fix settings if something is wrong
-  {
-    # Background prior events
-      if ((background.prior.event == TRUE) & length(stages.order) == 2 ){
-        warning("No background color manipulation if only two stages")
-        background.prior.event=FALSE
-      } else {}
-    # Sub-mortality required mortality to be specified
-      if ((allow.sub.stage.mortality==TRUE) & is.na(death.indicator)){
-        stop("Sub-stage mortality requires specifying an indicator for death")
-      } else {}
-  }
   # Functions for general use
   {
+    # Function to handle warnings and warning suppression
+      warning.f <- function(warning.message){
+        if (suppress.warnings==FALSE){
+          warning(warning.message,call.=FALSE)
+        } else {}
+      }
     # Function for adding curves on top of/beneath other curves
       relative.curve <- function(reference,input,over.under="over"){
         # Sort inputs
@@ -124,7 +119,7 @@ longitudinalcascade <- function(events.long,stages.order,
           relative <- relative[order(relative$surv.time),]
           return(relative)
       }
-      # Function for selecting which stats to output from survival curves
+    # Function for selecting which stats to output from survival curves
       surv.data.stats <- function(time.to.event,censorship,...){
         # Main stats calculations
           event <- 1-censorship
@@ -229,6 +224,18 @@ longitudinalcascade <- function(events.long,stages.order,
       )
     }
   }
+  # Check settings to make sure compatible, give an error, warning, and/or fix settings if something is wrong
+  {
+    # Background prior events
+      if ((background.prior.event == TRUE) & length(stages.order) == 2 ){
+        warning.f("No background color manipulation if only two stages.",call. = FALSE)
+        background.prior.event=FALSE
+      } else {}
+    # Sub-mortality required mortality to be specified
+      if ((allow.sub.stage.mortality==TRUE) & is.na(death.indicator)){
+        stop("Sub-stage mortality requires specifying an indicator for death.")
+      } else {}
+  }
   # Generate main wide dataset
   {
     # Dataset cleanup
@@ -237,9 +244,11 @@ longitudinalcascade <- function(events.long,stages.order,
         events.long.orig <- events.long
       # Write list of columns to keep
         cols.to.keep <- c("ID","stage","date")
-        if (!is.na(groups.order)) {cols.to.keep <- c(cols.to.keep,"group")}
+        if (!anyNA(groups.order)) {cols.to.keep <- c(cols.to.keep,"group")}
       # Strip out any columns that are not relevant
         events.long <- events.long[cols.to.keep]
+      # Strip out any rows with missing stage, group, or other data
+        events.long <- na.omit(events.long)
     }
     # Transform data into wide form
     {
@@ -318,9 +327,13 @@ longitudinalcascade <- function(events.long,stages.order,
     # Generate time-based groups if time breaks are specified
     if (!anyNA(groups.date.breaks)){
       # Generate group names from breaks
-        groups.order <- c(paste0(as.character(groups.date.breaks[1])," to ",as.character(groups.date.breaks[2]-1)))
-        for (i in 2:(length(groups.date.breaks)-1)){
-          groups.order <- c(groups.order,paste0(as.character(groups.date.breaks[i])," to ",as.character(groups.date.breaks[i+1]-1)))
+        if (!anyNA(groups.date.breaks.labels)){
+          groups.order <- groups.date.breaks.labels
+        } else {
+          groups.order <- c(paste0(as.character(groups.date.breaks[1])," to ",as.character(groups.date.breaks[2]-1)))
+          for (i in 2:(length(groups.date.breaks)-1)){
+            groups.order <- c(groups.order,paste0(as.character(groups.date.breaks[i])," to ",as.character(groups.date.breaks[i+1]-1)))
+          }
         }
       # Generate grouping for each event except the last to determine whether the start event is within time breaks
         for (stage.index in 1:(length(stages.order)-1)){
@@ -355,7 +368,7 @@ longitudinalcascade <- function(events.long,stages.order,
       } else {
         events.wide$date.censorship <- as.Date(NA)
       }
-      # Add in date of censorship based on end of data collection (if option checked)
+      # Add in date of censorship based on end of data collection if option checked
         last.date <- max(events.long.orig$date)
         if (lubridate::is.Date(censorship.date)){
           events.wide$date.censorship <- ifelse(is.na(events.wide$date.censorship),
@@ -367,17 +380,24 @@ longitudinalcascade <- function(events.long,stages.order,
           stop("Incompatible date for censorship. Use a date format or specify 'lastdate'")
         }
         events.wide$date.censorship <- as.Date.numeric(events.wide$date.censorship)
-      # Assume that if date of death exists and occurs after censorship event, censorship is false and replace with NA
+      # Assume that if date of death exists and occurs after censorship event, censorship is false and replace with last date recorded
       if (!is.na(censorship.indicator) & (!is.na(death.indicator))){
-        events.wide$date.censorship <- ifelse((events.wide$date.censorship < events.wide$date.death) & (is.na(events.wide$date.death)==FALSE) & (is.na(events.wide$date.censorship)==FALSE),
-                                              NA,events.wide$date.censorship)
-        events.wide$date.censorship <- as.Date.numeric(events.wide$date.censorship)
+        # Check to see if any individuals fall into this category, and warn user
+        if (any((events.wide$date.censorship < events.wide$date.death) & (!is.na(events.wide$date.death)) & (!is.na(events.wide$date.censorship)))){
+          warning.f(paste0("At least one censorship event takes place after death date. Changed censorship date(s) to last date recorded for those cases."))
+          events.wide$date.censorship <- ifelse((events.wide$date.censorship < events.wide$date.death) & (!is.na(events.wide$date.death)) & (!is.na(events.wide$date.censorship)),
+                                      last.date,events.wide$date.censorship)
+          events.wide$date.censorship <- as.Date.numeric(events.wide$date.censorship)
+        } else {}
       }
       # Deal with scenarios where censorship event occurs on or before stage event, by assuming censorship is false, and sets it to the last date
         for (i in 1:(length(stages.order))){
-          events.wide$date.censorship <- ifelse((events.wide$date.censorship < events.wide[[paste0("date.stage.",i)]]) & !is.na(events.wide[[paste0("date.stage.",i)]]) & (!is.na(events.wide$date.censorship)),
-                                              last.date,events.wide$date.censorship)
-          events.wide$date.censorship <- as.Date.numeric(events.wide$date.censorship)
+          warning.f(paste0("At least one censorship event occurs before stage ",stages.order[i],". Changed censorship date(s) to last date recorded for those cases."))
+          if (any((events.wide$date.censorship < events.wide[[paste0("date.stage.",i)]]) & !is.na(events.wide[[paste0("date.stage.",i)]]) & (!is.na(events.wide$date.censorship)))){
+            events.wide$date.censorship <- ifelse((events.wide$date.censorship < events.wide[[paste0("date.stage.",i)]]) & !is.na(events.wide[[paste0("date.stage.",i)]]) & (!is.na(events.wide$date.censorship)),
+                                    last.date,events.wide$date.censorship)
+            events.wide$date.censorship <- as.Date.numeric(events.wide$date.censorship)
+          }
         }
     }
     # Generate dataset for recording TTE data
@@ -726,9 +746,10 @@ longitudinalcascade <- function(events.long,stages.order,
         if (length(main.fill.colors)==1){
           main.fill.colors <- color.gradient(main.fill.colors,(length(stages.order)-1))
         } else {}
+        # Main plot
         chart <- ggplot2::ggplot() +
-          geom_stepribbon( data=surv.main.chart,aes(x=.data$surv.time,ymax=.data$surv.p,fill=.data$end.stage.factor,ymin=0),
-                                                 alpha=1) +
+          geom_stepribbon(data=surv.main.chart,aes(x=.data$surv.time,ymax=.data$surv.p,fill=.data$end.stage.factor,ymin=0),
+                                                 alpha=1,show.legend = FALSE) +
           ggplot2::theme_bw() %+replace%
           ggplot2::theme(
             panel.grid = element_blank(),
@@ -789,6 +810,26 @@ longitudinalcascade <- function(events.long,stages.order,
       # Set fill colors
         chart <- chart +
           ggplot2::scale_fill_manual(values = main.fill.colors)
+      # Manually generate legend
+        # legend.states <- stages.order
+        # legend.fill.colors <- c("white",main.fill.colors)
+        # if (!is.na(death.indicator)){
+        #   legend.states <- c(legend.states,death.indicator)
+        #   legend.fill.colors <- c(legend.fill.colors,death.fill.color)
+        # } else {}
+        # if (risk.pool.size.line==TRUE){
+        #   legend.states <- c(legend.states,"Risk pool size")
+        #   legend.fill.colors <- c(legend.fill.colors,risk.pool.fill.color)
+        # } else {}
+        # df.legend <- unique(surv.main.chart[c("end.stage.factor","group.factor")])
+        # df.legend$placeholder <- ordered(legend.states[1],labels = legend.states,levels=legend.states)
+        # df.legend$x <- 0
+        # df.legend$y <- 0
+        #
+        #
+        # #chart <- chart +
+        #   chart + geom_ribbon(data=df.legend,x=df.legend$x,ymin=df.legend$y,ymax=df.legend$y,group=df.legend$legend.states,
+        #                        inherit.aes=FALSE,show.legend = TRUE,aes(fill=df.legend$legend.states))
       }
     } else {
       chart = FALSE
