@@ -742,14 +742,31 @@ longitudinalcascade <- function(events.long,stages.order,
       }
       # Generate ggplot chart
       {
-        # Generate / change colors
-        if (length(main.fill.colors)==1){
-          main.fill.colors <- color.gradient(main.fill.colors,(length(stages.order)-1))
-        } else {}
+        # Generate / change colors and legend
+        {
+          if (length(main.fill.colors)==1){
+            main.fill.colors <- color.gradient(main.fill.colors,(length(stages.order)-1))
+          } else {}
+          # Add colors and generate fill list depending on options
+            legend.states <- stages.order
+            legend.fill.colors <- c("white",main.fill.colors)
+            if (!is.na(death.indicator)){
+              legend.states <- c(legend.states,death.indicator)
+              legend.fill.colors <- c(legend.fill.colors,death.fill.color)
+            } else {}
+            if (risk.pool.size.line==TRUE){
+              legend.states <- c(legend.states,"Risk pool size")
+              legend.fill.colors <- c(legend.fill.colors,risk.pool.fill.color)
+            } else {}
+            legend.states <- ordered(legend.states,labels=legend.states,levels=legend.states)
+          # Generate main chart values with larger factor list
+            surv.main.chart$end.stage.factor.legend <- ordered(as.character(surv.main.chart$end.stage.factor),
+                                                               labels = legend.states,levels=legend.states)
+        }
         # Main plot
         chart <- ggplot2::ggplot() +
-          geom_stepribbon(data=surv.main.chart,aes(x=.data$surv.time,ymax=.data$surv.p,fill=.data$end.stage.factor,ymin=0),
-                                                 alpha=1,show.legend = FALSE) +
+          geom_stepribbon(data=surv.main.chart,aes(x=.data$surv.time,ymax=.data$surv.p,fill=.data$end.stage.factor.legend,ymin=0),
+                                                 alpha=1,show.legend = TRUE,color="black") +
           ggplot2::theme_bw() %+replace%
           ggplot2::theme(
             panel.grid = element_blank(),
@@ -757,30 +774,34 @@ longitudinalcascade <- function(events.long,stages.order,
             axis.title.y=element_blank(),
             legend.position="bottom",
             legend.title=element_blank(),
+            legend.spacing.x = unit(0.1, 'cm'),
             axis.text = element_text(colour="black",size=10),
             strip.text = element_text(size = 12),
             strip.text.x = element_text(hjust=0),
             panel.spacing = unit(1, "lines")
           ) +
-          ggplot2::guides(color = guide_legend(override.aes = list(linetype = 0))) +
+          #ggplot2::guides(color = guide_legend(override.aes = list(linetype = 0))) +
           ggplot2::scale_x_continuous(expand = c(0, 0),
                             labels=x.scale.function,
                             breaks = c(0,round2(time.horizon/365,0))) +
           ggplot2::xlab("Time (years) from start of stage") +
           ggplot2::scale_y_continuous(expand = c(0, 0),labels=percent) +
-          ggplot2::scale_color_manual(values=c(rep("black",length(stages.order)-1))) +
+          #ggplot2::scale_color_manual(values=c(rep("black",length(stages.order)-1))) +
+          ggplot2::scale_color_manual(values=c(rep("black",length(legend.fill.colors)))) +
           ggplot2::facet_grid(group.factor ~ start.stage.factor,
                      switch="y") +
           ggplot2::theme(strip.background = element_blank(),
-                strip.placement = "outside")
+                strip.placement = "outside") +
+          ggplot2::scale_fill_manual(values = legend.fill.colors,limits=levels(legend.states)) +
+          ggplot2::guides(colour = guide_legend(override.aes = list(color="black",alpha = 1,size = 0.5)))
       # Add risk pool proportion indicator if indicated
         if (risk.pool.size.line==TRUE){
           chart <- chart +
             ggplot2::coord_cartesian(xlim=c(0,(time.horizon/365)),ylim = c(-.2, 1)) +
             geom_stepribbon(data = surv.main.chart.risk.pool,
                                   aes(x=.data$surv.time,ymin=((.data$surv.p.atrisk-1)/5),ymax=0),
-                                  alpha=1,fill=risk.pool.fill.color) +
-            ggplot2::geom_step(data = surv.main.chart.risk.pool,aes(x=.data$surv.time,y=(.data$surv.p.atrisk-1)/5))
+                                  alpha=1,fill=risk.pool.fill.color,show.legend = FALSE,color="black")
+            #ggplot2::geom_step(data = surv.main.chart.risk.pool,aes(x=.data$surv.time,y=(.data$surv.p.atrisk-1)/5),show.legend = FALSE)
         } else {
           chart <- chart +
             ggplot2::coord_cartesian(xlim=c(0,(time.horizon/365)),ylim = c(0, 1))
@@ -790,9 +811,9 @@ longitudinalcascade <- function(events.long,stages.order,
           chart <- chart +
             geom_stepribbon(data=df.substage.death,
                             aes(x=.data$surv.time,ymin=.data$surv.p,ymax=.data$surv.p.reference,group=.data$reference.stage.index),
-                                  alpha=1,fill=death.fill.color) +
-            ggplot2::geom_step(data=df.substage.death,
-                               aes(x=.data$surv.time,y=.data$surv.p,group=.data$reference.stage.index))
+                                  alpha=1,fill=death.fill.color,show.legend = FALSE,color="black")
+            # ggplot2::geom_step(data=df.substage.death,
+            #                    aes(x=.data$surv.time,y=.data$surv.p,group=.data$reference.stage.index),show.legend = FALSE)
         } else {}
       # Remove y axis facet label if there are no groups defined
         if (anyNA(groups.order.orig)==TRUE && anyNA(groups.date.breaks)==TRUE){
@@ -801,35 +822,10 @@ longitudinalcascade <- function(events.long,stages.order,
         } else {}
       # Add main lines and overlays
         chart <- chart +
-          ggplot2::geom_step(data=surv.main.chart,aes(x=.data$surv.time,y=.data$surv.p,color=.data$end.stage.factor),
-                             show.legend = FALSE, size=.1) +
-          ggplot2::geom_step(data=surv.main.chart[surv.main.chart$start.stage.index==(surv.main.chart$end.stage.index-1),],
-                             aes(x=.data$surv.time,y=.data$surv.p,color=.data$end.stage.factor),size=1,
-                             show.legend = FALSE) +
+          # ggplot2::geom_step(data=surv.main.chart[surv.main.chart$start.stage.index==(surv.main.chart$end.stage.index-1),],
+          #                    aes(x=.data$surv.time,y=.data$surv.p,color=.data$end.stage.factor),size=1,
+          #                    show.legend = FALSE) +
           ggplot2::geom_hline(yintercept=0)
-      # Set fill colors
-        chart <- chart +
-          ggplot2::scale_fill_manual(values = main.fill.colors)
-      # Manually generate legend
-        # legend.states <- stages.order
-        # legend.fill.colors <- c("white",main.fill.colors)
-        # if (!is.na(death.indicator)){
-        #   legend.states <- c(legend.states,death.indicator)
-        #   legend.fill.colors <- c(legend.fill.colors,death.fill.color)
-        # } else {}
-        # if (risk.pool.size.line==TRUE){
-        #   legend.states <- c(legend.states,"Risk pool size")
-        #   legend.fill.colors <- c(legend.fill.colors,risk.pool.fill.color)
-        # } else {}
-        # df.legend <- unique(surv.main.chart[c("end.stage.factor","group.factor")])
-        # df.legend$placeholder <- ordered(legend.states[1],labels = legend.states,levels=legend.states)
-        # df.legend$x <- 0
-        # df.legend$y <- 0
-        #
-        #
-        # #chart <- chart +
-        #   chart + geom_ribbon(data=df.legend,x=df.legend$x,ymin=df.legend$y,ymax=df.legend$y,group=df.legend$legend.states,
-        #                        inherit.aes=FALSE,show.legend = TRUE,aes(fill=df.legend$legend.states))
       }
     } else {
       chart = FALSE
