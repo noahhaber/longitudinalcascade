@@ -18,7 +18,8 @@
 #' @param allow.sub.stage.mortality Sub-stage-mortality indicate subsequent mortality transitions across the cascade. If TRUE, the main chart will show transitions to all possible subsequent events. For example, if there are 4 stages (1-4), the leftmost chart will show each transition from 1-2, 1-3, and 1-4, while the next chart will show 2-3 and 2-4, and the last chart will show only 3-4. If FALSE, the charts will only show transition to the subsequent stage.
 #' @param skip.mode This option shows "skips" across the cascade in each chart, as indicated by the y intercept. If "none" (default) each stage will start only with people who have not moved on to a subsequent stage, i.e. the y intercept will always be 0. If set to "internal" an individual can enter into a stage even if they have "skipped" through it. For example, an individual may go straight from stage 1 to stage 3, skipping 2. If this indicator is FALSE, the stage transition chart from 2-3 will not contain this individual in the denomenator. If TRUE, this individual will be counted in the denomenator for this transition, but will be counted as having transitioned into stage 3 immediately upon entering stage 2. If "external" individuals contribute person-time and are in the y-axis of transitions even prior to their first recorded stage date.
 #' @param time.horizon This option shows the maximum range of each stage in days. Defaults to 365 days (1 year).
-#' @param nochart Setting this to TRUE prevents the function from generating the main chart.
+#' @param chart.mode By default, the chart is set to a stage-by-stage panel view ("stage panels"). Alternatively, it may be desirable to have only the first panel showing the overall experience from the first entry condition, as indicated by the "first transition" option.
+#' @param nochart Setting this to TRUE prevents the function from generating the main chart to save run time.
 #' @param risk.pool.size.line Setting to TRUE adds an indicator of risk pool remaining to the main charts as a line reflected beneath the main chart, showing the proportion of the original risk pool remaining at each time point. Defaults to FALSE.
 #' @param main.fill.colors (optional) This defines the color scheme of the stage transition graphs, as a string indicator for color or a c() list of colors. If the colors contain only one color, the color scheme will automatically generate progressively faded versions of the initial color provided for the remaining stage transitions. Otherwise, a list which is exactly one fewer than the # of stages must be provided, in the order of stage trasitions.
 #' @param death.fill.color (optional) This defines the color scheme for the death stage transition, as a string indicator for color.
@@ -69,7 +70,7 @@ longitudinalcascade <- function(events.long,stages.order,
                          skip.mode="none",
                          time.horizon=365,
                          main.fill.colors = "#4472C4",death.fill.color = "#FF6A6A",
-                         nochart=FALSE,risk.pool.size.line=FALSE,
+                         chart.mode = "stage panels",nochart=FALSE,risk.pool.size.line=FALSE,
                          risk.pool.fill.color = "#90dbb2",background.prior.event=TRUE,
                          suppress.warnings = FALSE) {
 
@@ -660,12 +661,6 @@ longitudinalcascade <- function(events.long,stages.order,
         {
           # Generate data
             surv.main.chart <- surv.main
-          # Drop out duplicate boxes (due to censoring) to reduce drawing time
-            # surv.main.chart <- surv.main.chart %>%
-            #   dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time,-.data$surv.p) %>%
-            #   dplyr::group_by(.data$surv.p,.data$start.stage.factor,.data$end.stage.factor,.data$group.factor) %>%
-            #   dplyr::slice(c(n())) %>%
-            #   dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time,-.data$surv.p)
           # Add background area in for foundation event
             if (background.prior.event==TRUE){
               surv.main.chart.temp <- surv.main.chart
@@ -700,11 +695,10 @@ longitudinalcascade <- function(events.long,stages.order,
         if (!is.na(death.indicator)){
           # Generate data
             surv.death.chart <- surv.death
-          # Drop out duplicate boxes (due to censoring) to reduce drawing time
-            # surv.death.chart <- surv.death.chart %>%
-            #   dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$reference.stage.index,.data$surv.time,-.data$surv.p) %>%
-            #   dplyr::group_by(.data$surv.p,.data$start.stage.factor,.data$reference.stage.index,.data$group.factor) %>%
-            #   dplyr::slice(c(n()))
+          # Trim data if only a single panel is wanted
+            if (chart.mode == "first transition"){
+              surv.death.chart <- surv.death.chart[surv.death.chart$start.stage.index == 1,]
+            } else {}
           # Rearrange and sort for drawing
             surv.death.chart <- surv.death.chart %>%
               dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time)
@@ -719,7 +713,6 @@ longitudinalcascade <- function(events.long,stages.order,
                 reference$surv.time <- c(0,time.horizon)
                 reference$surv.p <- c(1,1)
               } else {
-                #input$surv.p <- 1-input$surv.p
                 reference <- surv.main.chart[surv.main.chart$start.stage.index==start.stage.index & surv.main.chart$end.stage.index==(reference.stage.index) & surv.main.chart$group.index==group.index,]
               }
               df <- relative.curve(reference,input,over.under="under")
@@ -734,11 +727,17 @@ longitudinalcascade <- function(events.long,stages.order,
             }
             df.substage.stages <- unique(surv.death.chart[c("start.stage.index","reference.stage.index","group.index")])
             df.substage.death <- do.call("rbind",lapply(1:nrow(df.substage.stages),function(x) gen.substage.mort.df(df.substage.stages$start.stage.index[x],df.substage.stages$reference.stage.index[x],df.substage.stages$group.index[x])))
-            #df.substage.death$surv.p <- df.substage.death$surv.p.reference - .1
-
-          # Assign reference frames to death events
-            #surv.death.chart$reference.stage.index <- surv.death.chart$end.stage.index
         } else {}
+        # Data modifications due to chart options
+        {
+          # Trim data if only a single panel is wanted
+            if (chart.mode == "first transition"){
+              surv.main.chart <- surv.main.chart[surv.main.chart$start.stage.index == 1,]
+              if (!is.na(death.indicator)){
+                surv.death.chart <- surv.death.chart[surv.death.chart$start.stage.index == 1,]
+              } else {}
+            } else {}
+        }
       }
       # Generate ggplot chart
       {
@@ -780,20 +779,26 @@ longitudinalcascade <- function(events.long,stages.order,
             strip.text.x = element_text(hjust=0),
             panel.spacing = unit(1, "lines")
           ) +
-          #ggplot2::guides(color = guide_legend(override.aes = list(linetype = 0))) +
           ggplot2::scale_x_continuous(expand = c(0, 0),
                             labels=x.scale.function,
                             breaks = c(0,round2(time.horizon/365,0))) +
           ggplot2::xlab("Time (years) from start of stage") +
           ggplot2::scale_y_continuous(expand = c(0, 0),labels=percent) +
-          #ggplot2::scale_color_manual(values=c(rep("black",length(stages.order)-1))) +
           ggplot2::scale_color_manual(values=c(rep("black",length(legend.fill.colors)))) +
-          ggplot2::facet_grid(group.factor ~ start.stage.factor,
-                     switch="y") +
           ggplot2::theme(strip.background = element_blank(),
                 strip.placement = "outside") +
           ggplot2::scale_fill_manual(values = legend.fill.colors,limits=levels(legend.states)) +
           ggplot2::guides(colour = guide_legend(override.aes = list(color="black",alpha = 1,size = 0.5)))
+      # Specify facet grid types
+        if (chart.mode=="first transition"){
+          chart <- chart +
+            ggplot2::facet_grid(group.factor ~ 1,
+                     switch="y")
+        } else {
+          chart <- chart +
+            ggplot2::facet_grid(group.factor ~ start.stage.factor,
+                     switch="y")
+        }
       # Add risk pool proportion indicator if indicated
         if (risk.pool.size.line==TRUE){
           chart <- chart +
@@ -801,7 +806,6 @@ longitudinalcascade <- function(events.long,stages.order,
             geom_stepribbon(data = surv.main.chart.risk.pool,
                                   aes(x=.data$surv.time,ymin=((.data$surv.p.atrisk-1)/5),ymax=0),
                                   alpha=1,fill=risk.pool.fill.color,show.legend = FALSE,color="black")
-            #ggplot2::geom_step(data = surv.main.chart.risk.pool,aes(x=.data$surv.time,y=(.data$surv.p.atrisk-1)/5),show.legend = FALSE)
         } else {
           chart <- chart +
             ggplot2::coord_cartesian(xlim=c(0,(time.horizon/365)),ylim = c(0, 1))
@@ -812,8 +816,6 @@ longitudinalcascade <- function(events.long,stages.order,
             geom_stepribbon(data=df.substage.death,
                             aes(x=.data$surv.time,ymin=.data$surv.p,ymax=.data$surv.p.reference,group=.data$reference.stage.index),
                                   alpha=1,fill=death.fill.color,show.legend = FALSE,color="black")
-            # ggplot2::geom_step(data=df.substage.death,
-            #                    aes(x=.data$surv.time,y=.data$surv.p,group=.data$reference.stage.index),show.legend = FALSE)
         } else {}
       # Remove y axis facet label if there are no groups defined
         if (anyNA(groups.order.orig)==TRUE && anyNA(groups.date.breaks)==TRUE){
