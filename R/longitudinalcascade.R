@@ -25,10 +25,12 @@
 #' @param death.fill.color (optional) This defines the color scheme for the death stage transition, as a string indicator for color.
 #' @param risk.pool.fill.color (optional) This defines the color scheme for the risk pool graphic, as a string indicator for color.
 #' @param background.prior.event (optional) This changes the background of the facetted chart to be the color for the prior event.
+#' @param suppress.messages (Option) Suppresses tips and messages about the dataset
 #' @import survival ggplot2 dplyr tidyr zoo scales grDevices
 #' @importFrom stats relevel
 #' @importFrom rlang .data
 #' @importFrom lubridate is.Date
+#' @importFrom stats na.omit
 #' @export
 #' @references Haber et al. (2017) Lancet HIV 4(5):e223-e230
 #' (\href{https://www.ncbi.nlm.nih.gov/pubmed/28153470}{PubMed})
@@ -50,7 +52,7 @@
 #' longitudinalcascade.sim <- longitudinalcascade(events_long,stages.order=stages.order,
 #' groups.order=groups.order,death.indicator=death.indicator,
 #' censorship.indicator=censorship.indicator,
-#' allow.sub.stages=allow.sub.stages,skip.mode=skip.mode)
+#' allow.sub.stages=allow.sub.stages)
 #'
 #' # Print/output main multipanel chart
 #' longitudinalcascade.sim$chart
@@ -72,14 +74,14 @@ longitudinalcascade <- function(events.long,stages.order,
                          main.fill.colors = "#4472C4",death.fill.color = "#FF6A6A",
                          chart.mode = "stage panels",nochart=FALSE,risk.pool.size.line=FALSE,
                          risk.pool.fill.color = "#90dbb2",background.prior.event=TRUE,
-                         suppress.warnings = FALSE) {
+                         suppress.messages = FALSE) {
 
   # Functions for general use
   {
     # Function to handle warnings and warning suppression
       warning.f <- function(warning.message){
-        if (suppress.warnings==FALSE){
-          warning(warning.message,call.=FALSE)
+        if (suppress.messages==FALSE){
+          print(warning.message)
         } else {}
       }
     # Function for adding curves on top of/beneath other curves

@@ -5,13 +5,15 @@
 \title{Longitudinal cascade statistics and charts}
 \usage{
 longitudinalcascade(events.long, stages.order, groups.order = NA,
-  groups.date.breaks = NA, death.indicator = NA,
-  censorship.indicator = NA, censorship.date = "lastdate",
-  allow.sub.stages = FALSE, allow.sub.stage.mortality = FALSE,
-  skip.mode = "none", time.horizon = 365,
-  main.fill.colors = "#4472C4", death.fill.color = "#FF6A6A",
+  groups.date.breaks = NA, groups.date.breaks.labels = NA,
+  death.indicator = NA, censorship.indicator = NA,
+  censorship.date = "lastdate", allow.sub.stages = FALSE,
+  allow.sub.stage.mortality = FALSE, skip.mode = "none",
+  time.horizon = 365, main.fill.colors = "#4472C4",
+  death.fill.color = "#FF6A6A", chart.mode = "stage panels",
   nochart = FALSE, risk.pool.size.line = FALSE,
-  risk.pool.fill.color = "#90dbb2", background.prior.event = TRUE)
+  risk.pool.fill.color = "#90dbb2", background.prior.event = TRUE,
+  suppress.messages = FALSE)
 }
 \arguments{
 \item{events.long}{(required) The main dataframe input parameter. The data frame needs at least the following fields:
@@ -25,6 +27,8 @@ longitudinalcascade(events.long, stages.order, groups.order = NA,
 \item{groups.order}{(optional) This is a vector of groups, matching the "group" column of the main data frame. If left blank, no group comparisons will be performed. For the chart, each group will have its own row.}
 
 \item{groups.date.breaks}{(optional) If groups.date.breaks is filled in, the grouping will be defined by date range of entry event for each transition, rather than groups of individuals. Each transition will independently determine its own groups, based on the time in which the entrance event occurs. Times are determined by a vector of date breaks. Each group is defined as starting from a given date break value and continuing until it reaches the subsequent date break, not including data from that ending break value. For example, setting the break values to be January 1, 2011, January 1, 2012, and January 1, 2013 will create two groups. The first group will take individuals who entered each stage from January 1, 2011 to Dec 31, 2011, and the second will take individuals who entered into the stage from January 1, 2012 to Dec 31, 2012.}
+
+\item{groups.date.breaks.labels}{(optional) Changes the default labelling of the groups when you are using date break groupings. Entered as a vector of strings, and must be the same length as the number of groups.}
 
 \item{death.indicator}{(optional) This parameter is the string which indicates a death event in the dataset. If specified, between-stage mortality will be estimated and shown as a KM curve on the top of the chart(s). If left blank, death events will not be estimated.}
 
@@ -44,13 +48,17 @@ longitudinalcascade(events.long, stages.order, groups.order = NA,
 
 \item{death.fill.color}{(optional) This defines the color scheme for the death stage transition, as a string indicator for color.}
 
-\item{nochart}{Setting this to TRUE prevents the function from generating the main chart.}
+\item{chart.mode}{By default, the chart is set to a stage-by-stage panel view ("stage panels"). Alternatively, it may be desirable to have only the first panel showing the overall experience from the first entry condition, as indicated by the "first transition" option.}
+
+\item{nochart}{Setting this to TRUE prevents the function from generating the main chart to save run time.}
 
 \item{risk.pool.size.line}{Setting to TRUE adds an indicator of risk pool remaining to the main charts as a line reflected beneath the main chart, showing the proportion of the original risk pool remaining at each time point. Defaults to FALSE.}
 
 \item{risk.pool.fill.color}{(optional) This defines the color scheme for the risk pool graphic, as a string indicator for color.}
 
 \item{background.prior.event}{(optional) This changes the background of the facetted chart to be the color for the prior event.}
+
+\item{suppress.messages}{(Option) Suppresses tips and messages about the dataset}
 }
 \description{
 This package generates a longitudinal casade, including a graphical representation. This takes a long-formatted list of stage-by-stage events and transforms it into a longitudinal cascade, correcting the orders of events.
@@ -68,15 +76,14 @@ death.indicator <- "Death"
 retention.indicator <- "Clinic visit"
 censorship.indicator <- "LTFU"
 allow.sub.stages <- TRUE
-skip.mode <- "internal"
 
 # Create cascade object
 longitudinalcascade.sim <- longitudinalcascade(events_long,stages.order=stages.order,
 groups.order=groups.order,death.indicator=death.indicator,
 censorship.indicator=censorship.indicator,
-allow.sub.stages=allow.sub.stages,skip.mode=skip.mode)
+allow.sub.stages=allow.sub.stages)
 
-# Print/output main chart
+# Print/output main multipanel chart
 longitudinalcascade.sim$chart
 # Output full survival dataset generated, as a data frame
 df.longitudainalcascade.survival <- longitudinalcascade.sim$surv.dataset
