@@ -19,7 +19,6 @@
 #' @param skip.mode This option shows "skips" across the cascade in each chart, as indicated by the y intercept. If "none" (default) each stage will start only with people who have not moved on to a subsequent stage, i.e. the y intercept will always be 0. If set to "internal" an individual can enter into a stage even if they have "skipped" through it. For example, an individual may go straight from stage 1 to stage 3, skipping 2. If this indicator is FALSE, the stage transition chart from 2-3 will not contain this individual in the denomenator. If TRUE, this individual will be counted in the denomenator for this transition, but will be counted as having transitioned into stage 3 immediately upon entering stage 2. If "external" individuals contribute person-time and are in the y-axis of transitions even prior to their first recorded stage date.
 #' @param time.horizon This option shows the maximum range of each stage in days. Defaults to 365 days (1 year).
 #' @param chart.mode By default, the chart is set to a stage-by-stage panel view ("stage panels"). Alternatively, it may be desirable to have only the first panel showing the overall experience from the first entry condition, as indicated by the "first transition" option.
-#' @param nochart Setting this to TRUE prevents the function from generating the main chart to save run time.
 #' @param risk.pool.size.line Setting to TRUE adds an indicator of risk pool remaining to the main charts as a line reflected beneath the main chart, showing the proportion of the original risk pool remaining at each time point. Defaults to FALSE.
 #' @param main.fill.colors (optional) This defines the color scheme of the stage transition graphs, as a string indicator for color or a c() list of colors. If the colors contain only one color, the color scheme will automatically generate progressively faded versions of the initial color provided for the remaining stage transitions. Otherwise, a list which is exactly one fewer than the # of stages must be provided, in the order of stage trasitions.
 #' @param death.fill.color (optional) This defines the color scheme for the death stage transition, as a string indicator for color.
@@ -72,8 +71,11 @@ longitudinalcascade <- function(events.long,stages.order,
                          skip.mode="none",
                          time.horizon=365,
                          main.fill.colors = "#4472C4",death.fill.color = "#FF6A6A",
-                         chart.mode = "stage panels",nochart=FALSE,risk.pool.size.line=FALSE,
-                         risk.pool.fill.color = "#90dbb2",background.prior.event=TRUE,
+                         chart.mode = "stage panels",
+                         ts.indicator = NA,ts.gap.time = 90,ts.start.stage=1,ts.end.stage=NA,ts.color="#a2f2da",
+                         risk.pool.size.line=FALSE,
+                         risk.pool.fill.color = "#90dbb2",
+                         background.prior.event=TRUE,
                          suppress.messages = FALSE) {
 
   # Functions for general use
@@ -81,7 +83,7 @@ longitudinalcascade <- function(events.long,stages.order,
     # Function to handle warnings and warning suppression
       warning.f <- function(warning.message){
         if (suppress.messages==FALSE){
-          print(warning.message)
+          message(warning.message)
         } else {}
       }
     # Function for adding curves on top of/beneath other curves
@@ -123,10 +125,14 @@ longitudinalcascade <- function(events.long,stages.order,
           return(relative)
       }
     # Function for selecting which stats to output from survival curves
-      surv.data.stats <- function(time.to.event,censorship,...){
+      surv.data.stats <- function(time.to.event,censorship,weights=NA,...){
         # Main stats calculations
           event <- 1-censorship
-          surv <- survival::survfit(survival::Surv(time = time.to.event, event = event) ~ 1)
+          if (!anyNA(weights)){
+            surv <- survival::survfit(survival::Surv(time = time.to.event, event = event) ~ 1,weights=weights)
+          } else {
+            surv <- survival::survfit(survival::Surv(time = time.to.event, event = event) ~ 1)
+          }
           surv.time <- surv$time
           surv.p <- 1-surv$surv
           surv.p.UB <- 1-surv$lower
@@ -167,7 +173,6 @@ longitudinalcascade <- function(events.long,stages.order,
                                         (1-hsv.color.orig[2,1])*seq(0,(number.divisions-1)/(number.divisions),1/(number.divisions))+hsv.color.orig[2,1],
                                         hsv.color.orig[3,1]*seq(1,1/number.divisions,-1/number.divisions)),
                                       nrow=number.divisions))
-
           }
           rownames(hsv.color.new) <- c("h","s","v")
         # Convert back to regular color
@@ -408,6 +413,7 @@ longitudinalcascade <- function(events.long,stages.order,
       TTE <- events.wide %>%
         select("ID",ends_with("group"))
     }
+    #
   }
   # Create stage-by-stage events and survival
   {
@@ -511,7 +517,7 @@ longitudinalcascade <- function(events.long,stages.order,
           # Death stage transitions
           if (run.type=="death") {
             # Function for mortality stages and substages
-            surv.stats.mortality <- function(df.surv,start.stage.index,end.stage.index,group.index){
+              surv.stats.mortality <- function(df.surv,start.stage.index,end.stage.index,group.index){
             # Assign start date
               df.surv$start.date <- df.surv[[paste0("date.stage.",start.stage.index)]]
               df.surv$end.stage.date <- df.surv[[paste0("date.stage.",end.stage.index)]]
@@ -624,16 +630,194 @@ longitudinalcascade <- function(events.long,stages.order,
               # Return output
                 return(output)
             }
-          # Determine which stages to run
-            if (allow.sub.stage.mortality==TRUE) {
-              end.stage.index.list <- (start.stage.index+1):(length(stages.order))
-            } else {
-              end.stage.index.list <- (start.stage.index+1):(start.stage.index+1)
+            # Determine which stages to run
+              if (allow.sub.stage.mortality==TRUE) {
+                end.stage.index.list <- (start.stage.index+1):(length(stages.order))
+              } else {
+                end.stage.index.list <- (start.stage.index+1):(start.stage.index+1)
+              }
+            # Run mortality stages
+              surv <- do.call("rbind",lapply(end.stage.index.list,function(x)
+                surv.stats.mortality(events.wide[events.wide$eligible==1,],start.stage.index,x,group.index)))
+            } else {}
+          # Transient status transitions
+          if (run.type=="transient") {
+            # Function for transient stages and substages
+              surv.stats.transient <- function(events.wide.ts, ts.indicator,ts.gap.time,
+                                                  start.stage.index = 1,end.stage.index = NA,group.index=NA) {
+              # Generate initial data
+              {
+                # Get events wide and long versions for all events, with the given set of eligible IDs
+                  df.ts <- events.long.orig[events.long.orig$stage==ts.indicator & (events.long.orig$ID %in% events.wide.ts$ID),][c("ID","date","stage")]
+                # Add stage start events to df.ts (so that time is measured from start of stage)
+                  df.ts.date.stage <- stats::na.omit(events.wide.ts[c("ID",paste0("date.stage.",start.stage.index))])
+                  df.ts.date.stage$date <- df.ts.date.stage[[paste0("date.stage.",start.stage.index)]]
+                  df.ts.date.stage[[paste0("date.stage.",start.stage.index)]] <- NULL
+                  df.ts.date.stage$stage <- "Stage start"
+                  df.ts <- rbind(df.ts,df.ts.date.stage)
+                  rm(df.ts.date.stage)
+                  df.ts <- df.ts %>%
+                    dplyr::arrange(ID,date)
+                # Merge in relevant data from events.wide
+                  cols.to.keep <- c("ID",paste0("date.stage.",start.stage.index),"date.censorship")
+                  if (!is.na(end.stage.index)){
+                    cols.to.keep <- c(cols.to.keep,paste0("date.stage.",end.stage.index))
+                  } else {}
+                  if(!is.na(death.indicator)){
+                    cols.to.keep <- c(cols.to.keep,"date.death")
+                  } else {}
+                  df.ts <- merge(df.ts,events.wide.ts[cols.to.keep],
+                                 by="ID",all.x=TRUE,all.y=FALSE)
+                # Trim to date bounds
+                  df.ts <- df.ts[df.ts$date>=df.ts[[paste0("date.stage.",start.stage.index)]],]
+                  df.ts <- df.ts[df.ts$date<=df.ts$date.censorship,]
+                  if (!is.na(end.stage.index)){
+                    df.ts <- df.ts[df.ts$date<df.ts[[paste0("date.stage.",end.stage.index)]] | is.na(df.ts[[paste0("date.stage.",end.stage.index)]]),]
+                  } else {}
+                  if (!is.na(death.indicator)){
+                    df.ts <- df.ts[df.ts$date<df.ts$date.death | is.na(df.ts$date.death),]
+                    # Keep death events only if it occured within staging bounds
+                      if (is.na(end.stage.index)){
+                        df.ts$date.death <- ifelse(df.ts$date.death>df.ts[[paste0("date.stage.",start.stage.index)]],
+                                                 NA,df.ts$date.death)
+                      }
+                  } else {}
+                # Determine final "off" date and type (whichever happens first: ts.gap, next stage, death, or censorship)
+                    df.ts$date.end <- as.Date(NA)
+                  # If both death and next stage events are available
+                    if (!is.na(death.indicator) & !is.na(end.stage.index)){
+                      df.ts$date.end <- pmin(df.ts$date.death,df.ts[[paste0("date.stage.",end.stage.index)]],df.ts$date+ts.gap.time, na.rm = TRUE)
+                    } else {}
+                  # If only next stage events are available
+                    if (!is.na(end.stage.index)){
+                      df.ts$date.end <- pmin(df.ts[[paste0("date.stage.",end.stage.index)]],df.ts$date+ts.gap.time,na.rm=TRUE)
+                    } else {}
+                  # If only death is available
+                    if (!is.na(death.indicator) & is.na(end.stage.index)){
+                      df.ts$date.end <- pmin(df.ts$date.death,df.ts$date+ts.gap.time,na.rm=TRUE)
+                    } else {}
+                  # Revise so that death
+                  # If nothing else available, end at censorship date
+                    df.ts$date.end <- as.Date.numeric(ifelse(is.na(df.ts$date.end),df.ts$date.censorship,df.ts$date.end))
+              }
+              # Identify gaps and consolidate periods
+              {
+                # Determine if there is a gap of ts.gap.time days or more
+                  df.ts <- df.ts %>%
+                    dplyr::arrange(ID, date) %>%
+                    dplyr::group_by(ID) %>%
+                    dplyr::mutate(gap = dplyr::lead(date) - date>ts.gap.time)
+                # Create an "off" event when there is a gap
+                  df.ts$date.off <- NA
+                  df.ts$date.off <- as.Date.numeric(ifelse(df.ts$gap,df.ts$date+ts.gap.time,df.ts$date.off))
+                  df.ts$gap <- NULL
+                # Replace dates backward
+                  # Find the number of times needed to run
+                    df.ts <- df.ts %>% dplyr::group_by(ID) %>% dplyr::mutate(count = row_number())
+                    n.run <- max(df.ts$count)
+                    df.ts$count <- NULL
+                  # Give an end date if it's the last one
+                    df.ts$date.off <- as.Date.numeric(ifelse(dplyr::lead(df.ts$ID)!=df.ts$ID | is.na(dplyr::lead(df.ts$ID)),
+                                             df.ts$date.end,df.ts$date.off))
+                    if (!is.na(death.indicator)){
+                      df.ts$date.off <- as.Date.numeric(ifelse((dplyr::lead(df.ts$ID)!=df.ts$ID | is.na(dplyr::lead(df.ts$ID))) & df.ts$date.death < df.ts$date.off  & !is.na(df.ts$date.death),
+                                               df.ts$date.death,df.ts$date.off))
+                    } else {}
+                  # Trace backward until beginning of period
+                    for (i in 1:n.run){
+                      df.ts$date <- as.Date.numeric(ifelse(!is.na(df.ts$date.off) & !is.na(dplyr::lag(df.ts$ID)) & dplyr::lag(df.ts$ID)==df.ts$ID & is.na(dplyr::lag(df.ts$date.off)),
+                                           dplyr::lag(df.ts$date),df.ts$date))
+                      df.ts <- df.ts[!(dplyr::lead(df.ts$ID)==df.ts$ID & dplyr::lead(df.ts$date)==df.ts$date & !is.na(dplyr::lead(df.ts$date.off))),]
+                    }
+              }
+              # Generate repeat #s and weights
+                # Create count repeat #s
+                  df.ts <- df.ts %>%
+                    dplyr::arrange(ID,date)%>%
+                    dplyr::group_by(ID) %>% dplyr::mutate(count = row_number())
+                  max.count <- max(df.ts$count)
+              # Merge back into the wide dataset under appropriate labels
+              {
+                for (i in 1:max.count){
+                  df.ts.temp <- df.ts[df.ts$count==i,][c("ID","date","date.off")]
+                  df.ts.temp[[paste0("date.on.",i)]] <- df.ts.temp$date
+                  df.ts.temp[[paste0("date.off.",i)]] <- df.ts.temp$date.off
+                  df.ts.temp$date <- NULL
+                  df.ts.temp$date.off <- NULL
+                  events.wide.ts <- merge(events.wide.ts,df.ts.temp,by="ID",all.x = TRUE)
+                  rm(df.ts.temp)
+                }
+              }
+              # Function for survival stats
+                surv.stats.transient <- function(df.surv,start.stage.index,end.date.colname){
+                # Assign start date
+                  df.surv$start.date <- df.surv[[paste0("date.stage.",start.stage.index)]]
+                  df.surv$event.date <- df.surv[[end.date.colname]]
+                # Determine time to event and censorship
+                    df.surv$endpoint <- 0
+                    df.surv$end.date <- as.Date(NA)
+                    df.surv$censorship <- NA
+                  # Option 1: Main on/off event occurs
+                    df.surv$endpoint <- ifelse(!is.na(df.surv$event.date),
+                                               1,df.surv$endpoint)
+                    df.surv[df.surv$endpoint==1,]$end.date <- df.surv[df.surv$endpoint==1,]$event.date
+                    df.surv[df.surv$endpoint==1,]$censorship <- rep(0,sum(df.surv$endpoint==1))
+                  # Option 2: If end date is the censorship date, censor on that date
+                    df.surv$endpoint <- ifelse(df.surv$event.date >= df.surv$date.censorship & !is.na(df.surv$event.date),
+                                               2,df.surv$endpoint)
+                    df.surv[df.surv$endpoint==2,]$end.date <- df.surv[df.surv$endpoint==2,]$date.censorship
+                    df.surv[df.surv$endpoint==2,]$censorship <- rep(1,sum(df.surv$endpoint==2))
+                  # Option 3: Otherwise (if missing), use the censorship date
+                    df.surv$endpoint <- ifelse(df.surv$endpoint==0,3,df.surv$endpoint)
+                    df.surv[df.surv$endpoint==3,]$end.date <- df.surv[df.surv$endpoint==3,]$date.censorship
+                    df.surv[df.surv$endpoint==3,]$censorship <- rep(1,sum(df.surv$endpoint==3))
+                  # Revise events which occur after the time horizon of interest to the time horizon, and change to censorship
+                    df.surv$endpoint <- ifelse((df.surv$end.date - df.surv$start.date) > time.horizon,
+                                               4,df.surv$endpoint)
+                    df.surv[df.surv$endpoint==4,]$end.date <- df.surv[df.surv$endpoint==4,]$start.date + time.horizon
+                    df.surv[df.surv$endpoint==4,]$censorship <- rep(1,sum(df.surv$endpoint==4))
+                  # Get time to event
+                    df.surv$time.to.event <- df.surv$end.date-df.surv$start.date
+                  # Pull survival curves
+                    #output <- surv.data.stats(df.surv$time.to.event,df.surv$censorship,df.surv$weight)
+                    output <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)
+                  # Return output
+                    return(output)
+                }
+              # Generate on/off curves and combine
+              {
+                # Start off with the first event
+                  trans.surv.on <- surv.stats.transient(events.wide.ts,start.stage.index,paste0("date.on.",1))[c("surv.p","surv.time")]
+                  trans.surv.off <- surv.stats.transient(events.wide.ts,start.stage.index,paste0("date.off.",1))[c("surv.p","surv.time")]
+                # Add additional events as necessary
+                  if (max(df.ts$count)>1){
+                    for (i in 2:max(df.ts$count)){
+                      trans.surv.on <- relative.curve(trans.surv.on,surv.stats.transient(events.wide.ts,start.stage.index,paste0("date.on.",i))[c("surv.p","surv.time")])[c("surv.p","surv.time")]
+                      trans.surv.off <- relative.curve(trans.surv.off,surv.stats.transient(events.wide.ts,start.stage.index,paste0("date.off.",i))[c("surv.p","surv.time")])[c("surv.p","surv.time")]
+                    }
+                  } else {}
+                # Combine into one curve
+                  output <- relative.curve(trans.surv.on,trans.surv.off,"under")[c("surv.p","surv.time")]
+              }
+              # Output data
+              {
+                output$start.stage.index <- start.stage.index
+                output$end.stage.index <- end.stage.index
+                output$group.index <- group.index
+                output$ts.indicator <- ts.indicator
+                output$ts.gap.time <- ts.gap.time
+              # Return output
+                return(output)
+              }
             }
-          # Run mortality stages
-            surv <- do.call("rbind",lapply(end.stage.index.list,function(x)
-              surv.stats.mortality(events.wide[events.wide$eligible==1,],start.stage.index,x,group.index)))
-          } else {}
+            # Find each combination of transient statuses which start with the given start stage
+              ts.settings.rows <- which(ts.start.stage %in% start.stage.index)
+            # Run transient stages
+              surv <- do.call("rbind",lapply(ts.settings.rows,function(x)
+                surv.stats.transient(events.wide.ts = events.wide[events.wide$eligible==1,],
+                                     ts.indicator = ts.indicator[x],ts.gap.time = ts.gap.time[x],
+                                     start.stage.index = start.stage.index,end.stage.index = ts.end.stage[x],group.index=group.index)))
+            } else {}
         }
         # Change stages and groups to factors for easier charting
           surv$start.stage.factor <- ordered(surv$start.stage.index,levels=c(1:(length(stages.order)-1)),
@@ -653,186 +837,235 @@ longitudinalcascade <- function(events.long,stages.order,
         comb$run.type <- "death"
         surv.death <- do.call("rbind",mapply(stage.survival.run,start.stage.index = comb$stages,group.index = comb$groups,run.type = comb$run.type,SIMPLIFY = FALSE))
       } else {}
+      if (!anyNA(ts.indicator)){
+        comb$run.type <- "transient"
+        surv.transient <- do.call("rbind",mapply(stage.survival.run,start.stage.index = comb$stages,group.index = comb$groups,run.type = comb$run.type,SIMPLIFY = FALSE))
+      } else {}
   }
   # Generate chart graphics
   {
-    if (nochart==FALSE){
-      # Data manipulation
+    # Data manipulation
+    {
+      # Main events
       {
-        # Main events
-        {
-          # Generate data
-            surv.main.chart <- surv.main
-          # Add background area in for foundation event
-            if (background.prior.event==TRUE){
-              surv.main.chart.temp <- surv.main.chart
-              surv.main.chart.temp$surv.p <- 0
-              surv.main.chart.temp$surv.time <- 0
-              surv.main.chart.temp$surv.p.LB <- 0
-              surv.main.chart.temp$surv.p.UB <- 0
-              surv.main.chart.temp$surv.p.atrisk <- 1
-              surv.main.chart.temp$surv.n.atrisk <- 0
-              surv.main.chart.temp$start.stage.factor <- as.character(surv.main.chart.temp$end.stage.factor)
-              surv.main.chart.temp$start.stage.index <- surv.main.chart.temp$end.stage.index
-              surv.main.chart.temp <- unique(surv.main.chart.temp)
-              surv.main.chart.temp <- surv.main.chart.temp[surv.main.chart.temp$start.stage.index!=length(stages.order),]
-              surv.main.chart.temp$start.stage.factor <- ordered(surv.main.chart.temp$start.stage.factor,labels=levels(surv.main.chart$start.stage.factor),levels=levels(surv.main.chart$start.stage.factor))
-              surv.main.chart.temp$surv.p <- 1
-              surv.main.chart <- rbind(surv.main.chart,surv.main.chart.temp)
-              surv.main.chart.temp$surv.time <- time.horizon
-              surv.main.chart <- rbind(surv.main.chart,surv.main.chart.temp)
-              rm(surv.main.chart.temp)
-            } else {}
-          # Rearrange and sort for drawing
-            surv.main.chart <- surv.main.chart %>%
-              dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time)
-          # Change time to years
-            surv.main.chart$surv.time = surv.main.chart$surv.time/365
-          # Generate risk pool dataset
-            surv.main.chart.risk.pool <- surv.main.chart[surv.main.chart$end.stage.index == (surv.main.chart$start.stage.index +1) ,]
-          # Add a dummy factor for legend
-            surv.main.chart.risk.pool$event.factor <- factor("Risk pool",labels = c("Risk pool"),levels = c("Risk pool"))
-        }
-        # Death events
-        if (!is.na(death.indicator)){
-          # Generate data
-            surv.death.chart <- surv.death
-          # Trim data if only a single panel is wanted
-            if (chart.mode == "first transition"){
+        # Generate data
+          surv.main.chart <- surv.main
+        # Add background area in for foundation event
+          if (background.prior.event==TRUE){
+            surv.main.chart.temp <- surv.main.chart
+            surv.main.chart.temp$surv.p <- 0
+            surv.main.chart.temp$surv.time <- 0
+            surv.main.chart.temp$surv.p.LB <- 0
+            surv.main.chart.temp$surv.p.UB <- 0
+            surv.main.chart.temp$surv.p.atrisk <- 1
+            surv.main.chart.temp$surv.n.atrisk <- 0
+            surv.main.chart.temp$start.stage.factor <- as.character(surv.main.chart.temp$end.stage.factor)
+            surv.main.chart.temp$start.stage.index <- surv.main.chart.temp$end.stage.index
+            surv.main.chart.temp <- unique(surv.main.chart.temp)
+            surv.main.chart.temp <- surv.main.chart.temp[surv.main.chart.temp$start.stage.index!=length(stages.order),]
+            surv.main.chart.temp$start.stage.factor <- ordered(surv.main.chart.temp$start.stage.factor,labels=levels(surv.main.chart$start.stage.factor),levels=levels(surv.main.chart$start.stage.factor))
+            surv.main.chart.temp$surv.p <- 1
+            surv.main.chart <- rbind(surv.main.chart,surv.main.chart.temp)
+            surv.main.chart.temp$surv.time <- time.horizon
+            surv.main.chart <- rbind(surv.main.chart,surv.main.chart.temp)
+            rm(surv.main.chart.temp)
+          } else {}
+        # Rearrange and sort for drawing
+          surv.main.chart <- surv.main.chart %>%
+            dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time)
+        # Change time to years
+          surv.main.chart$surv.time = surv.main.chart$surv.time/365
+        # Generate risk pool dataset
+          surv.main.chart.risk.pool <- surv.main.chart[surv.main.chart$end.stage.index == (surv.main.chart$start.stage.index +1) ,]
+        # Add a dummy factor for legend
+          surv.main.chart.risk.pool$event.factor <- factor("Risk pool",labels = c("Risk pool"),levels = c("Risk pool"))
+      }
+      # Death events
+      if (!is.na(death.indicator)){
+        # Generate data
+          surv.death.chart <- surv.death
+        # Trim data if only a single panel is wanted
+          if (chart.mode == "first transition"){
+            surv.death.chart <- surv.death.chart[surv.death.chart$start.stage.index == 1,]
+          } else {}
+        # Rearrange and sort for drawing
+          surv.death.chart <- surv.death.chart %>%
+            dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time)
+        # Change time to years
+          surv.death.chart$surv.time = surv.death.chart$surv.time/365
+        # Revise and add mortality to relevent reference frames
+          gen.substage.mort.df <- function(start.stage.index,reference.stage.index,group.index){
+            input <- surv.death.chart[surv.death.chart$start.stage.index==start.stage.index & surv.death.chart$reference.stage.index==reference.stage.index & surv.death.chart$group.index==group.index,]
+            if (start.stage.index==reference.stage.index){
+              reference <- surv.main.chart[surv.main.chart$start.stage.index==start.stage.index & surv.main.chart$end.stage.index==reference.stage.index + 1 & surv.main.chart$group.index==group.index,]
+              reference <- reference[(1:2),]
+              reference$surv.time <- c(0,time.horizon)
+              reference$surv.p <- c(1,1)
+            } else {
+              reference <- surv.main.chart[surv.main.chart$start.stage.index==start.stage.index & surv.main.chart$end.stage.index==(reference.stage.index) & surv.main.chart$group.index==group.index,]
+            }
+            df <- relative.curve(reference,input,over.under="under")
+            df$start.stage.index <- start.stage.index
+            df$start.stage.factor <- reference$start.stage.factor[1]
+            df$end.stage.index <- reference.stage.index
+            df$end.stage.factor <- reference$end.stage.factor[1]
+            df$group.index <- group.index
+            df$group.factor <- reference$group.factor[1]
+            df$reference.stage.index <- reference.stage.index
+            return(df)
+          }
+          df.substage.stages <- unique(surv.death.chart[c("start.stage.index","reference.stage.index","group.index")])
+          df.substage.death <- do.call("rbind",lapply(1:nrow(df.substage.stages),function(x) gen.substage.mort.df(df.substage.stages$start.stage.index[x],df.substage.stages$reference.stage.index[x],df.substage.stages$group.index[x])))
+      } else {}
+      # Transient statuses
+      if (!anyNA(ts.indicator)){
+        # Generate data
+          surv.transient.chart <- surv.transient
+        # Trim data if only a single panel is wanted
+          if (chart.mode == "first transition"){
+            surv.transient.chart <- surv.transient.chart[surv.transient.chart$start.stage.index == 1,]
+          } else {}
+        # Rearrange and sort for drawing
+          surv.transient.chart <- surv.transient.chart %>%
+            dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time)
+        # Change time to years
+          surv.transient.chart$surv.time = surv.transient.chart$surv.time/365
+        # Revise and add transient status to relevent reference frames
+          gen.substage.transient.df <- function(start.stage.index,reference.stage.index,group.index){
+            #input <- surv.transient.chart[surv.transient.chart$start.stage.index==start.stage.index & surv.transient.chart$reference.stage.index==reference.stage.index & surv.transient.chart$group.index==group.index,]
+            # Get main curve for transient event
+              input <- surv.transient.chart[surv.transient.chart$start.stage.index==start.stage.index & surv.transient.chart$end.stage.index==reference.stage.index & surv.transient.chart$group.index==group.index,]
+            # Subtract out death if there is a death state
+            # if (!is.na(death.indicator)){
+            #   reference.death <- surv.death.chart[surv.death.chart$start.stage.index==start.stage.index & surv.death.chart$end.stage.index==(reference.stage.index) & surv.death.chart$group.index==group.index,]
+            #   input <- relative.curve(input,reference.death,over.under="under")[c("surv.p","surv.time")]
+            # } else {}
+            reference <- surv.main.chart[surv.main.chart$start.stage.index==start.stage.index & surv.main.chart$end.stage.index==(reference.stage.index) & surv.main.chart$group.index==group.index,]
+            df <- relative.curve(reference,input,over.under="over")
+            df$start.stage.index <- start.stage.index
+            df$start.stage.factor <- reference$start.stage.factor[1]
+            df$end.stage.index <- reference.stage.index
+            df$end.stage.factor <- reference$end.stage.factor[1]
+            df$group.index <- group.index
+            df$group.factor <- reference$group.factor[1]
+            df$reference.stage.index <- reference.stage.index
+            return(df)
+          }
+          #df.substage.stages <- unique(surv.transient.chart[c("start.stage.index","reference.stage.index","group.index")])
+          #df.substage.transient <- do.call("rbind",lapply(1:nrow(df.substage.stages),function(x) gen.substage.transient.df(df.substage.stages$start.stage.index[x],df.substage.stages$reference.stage.index[x],df.substage.stages$group.index[x])))
+          df.substage.stages <- unique(surv.transient.chart[c("start.stage.index","group.index")])
+          df.substage.transient <- do.call("rbind",lapply(1:nrow(df.substage.stages),function(x) gen.substage.transient.df(df.substage.stages$start.stage.index[x],df.substage.stages$start.stage.index[x]+1,df.substage.stages$group.index[x])))
+      } else {}
+      # Data modifications due to chart options
+      {
+        # Trim data if only a single panel is wanted
+          if (chart.mode == "first transition"){
+            surv.main.chart <- surv.main.chart[surv.main.chart$start.stage.index == 1,]
+            if (!is.na(death.indicator)){
               surv.death.chart <- surv.death.chart[surv.death.chart$start.stage.index == 1,]
             } else {}
-          # Rearrange and sort for drawing
-            surv.death.chart <- surv.death.chart %>%
-              dplyr::arrange(.data$group.factor,.data$start.stage.factor,.data$end.stage.factor,.data$surv.time)
-          # Change time to years
-            surv.death.chart$surv.time = surv.death.chart$surv.time/365
-          # Revise and add mortality to relevent reference frames
-            gen.substage.mort.df <- function(start.stage.index,reference.stage.index,group.index){
-              input <- surv.death.chart[surv.death.chart$start.stage.index==start.stage.index & surv.death.chart$reference.stage.index==reference.stage.index & surv.death.chart$group.index==group.index,]
-              if (start.stage.index==reference.stage.index){
-                reference <- surv.main.chart[surv.main.chart$start.stage.index==start.stage.index & surv.main.chart$end.stage.index==reference.stage.index + 1 & surv.main.chart$group.index==group.index,]
-                reference <- reference[(1:2),]
-                reference$surv.time <- c(0,time.horizon)
-                reference$surv.p <- c(1,1)
-              } else {
-                reference <- surv.main.chart[surv.main.chart$start.stage.index==start.stage.index & surv.main.chart$end.stage.index==(reference.stage.index) & surv.main.chart$group.index==group.index,]
-              }
-              df <- relative.curve(reference,input,over.under="under")
-              df$start.stage.index <- start.stage.index
-              df$start.stage.factor <- reference$start.stage.factor[1]
-              df$end.stage.index <- reference.stage.index
-              df$end.stage.factor <- reference$end.stage.factor[1]
-              df$group.index <- group.index
-              df$group.factor <- reference$group.factor[1]
-              df$reference.stage.index <- reference.stage.index
-              return(df)
-            }
-            df.substage.stages <- unique(surv.death.chart[c("start.stage.index","reference.stage.index","group.index")])
-            df.substage.death <- do.call("rbind",lapply(1:nrow(df.substage.stages),function(x) gen.substage.mort.df(df.substage.stages$start.stage.index[x],df.substage.stages$reference.stage.index[x],df.substage.stages$group.index[x])))
-        } else {}
-        # Data modifications due to chart options
-        {
-          # Trim data if only a single panel is wanted
-            if (chart.mode == "first transition"){
-              surv.main.chart <- surv.main.chart[surv.main.chart$start.stage.index == 1,]
-              if (!is.na(death.indicator)){
-                surv.death.chart <- surv.death.chart[surv.death.chart$start.stage.index == 1,]
-              } else {}
+            if (anyNA(ts.indicator)){
+              surv.transient.chart <- surv.transient.chart[surv.transient.chart$start.stage.index == 1,]
             } else {}
-        }
-      }
-      # Generate ggplot chart
-      {
-        # Generate / change colors and legend
-        {
-          if (length(main.fill.colors)==1){
-            main.fill.colors <- color.gradient(main.fill.colors,(length(stages.order)-1))
           } else {}
-          # Add colors and generate fill list depending on options
-            legend.states <- stages.order
-            legend.fill.colors <- c("white",main.fill.colors)
-            if (!is.na(death.indicator)){
-              legend.states <- c(legend.states,death.indicator)
-              legend.fill.colors <- c(legend.fill.colors,death.fill.color)
-            } else {}
-            if (risk.pool.size.line==TRUE){
-              legend.states <- c(legend.states,"Risk pool size")
-              legend.fill.colors <- c(legend.fill.colors,risk.pool.fill.color)
-            } else {}
-            legend.states <- ordered(legend.states,labels=legend.states,levels=legend.states)
-          # Generate main chart values with larger factor list
-            surv.main.chart$end.stage.factor.legend <- ordered(as.character(surv.main.chart$end.stage.factor),
-                                                               labels = legend.states,levels=legend.states)
-        }
-        # Main plot
-        chart <- ggplot2::ggplot() +
-          geom_stepribbon(data=surv.main.chart,aes(x=.data$surv.time,ymax=.data$surv.p,fill=.data$end.stage.factor.legend,ymin=0),
-                                                 alpha=1,show.legend = TRUE,color="black") +
-          ggplot2::theme_bw() %+replace%
-          ggplot2::theme(
-            panel.grid = element_blank(),
-            plot.margin = unit(c(.1,.1,.1,.1), "cm"),
-            axis.title.y=element_blank(),
-            legend.position="bottom",
-            legend.title=element_blank(),
-            legend.spacing.x = unit(0.1, 'cm'),
-            axis.text = element_text(colour="black",size=10),
-            strip.text = element_text(size = 12),
-            strip.text.x = element_text(hjust=0),
-            panel.spacing = unit(1, "lines")
-          ) +
-          ggplot2::scale_x_continuous(expand = c(0, 0),
-                            labels=x.scale.function,
-                            breaks = c(0,round2(time.horizon/365,0))) +
-          ggplot2::xlab("Time (years) from start of stage") +
-          ggplot2::scale_y_continuous(expand = c(0, 0),labels=percent) +
-          ggplot2::scale_color_manual(values=c(rep("black",length(legend.fill.colors)))) +
-          ggplot2::theme(strip.background = element_blank(),
-                strip.placement = "outside") +
-          ggplot2::scale_fill_manual(values = legend.fill.colors,limits=levels(legend.states)) +
-          ggplot2::guides(colour = guide_legend(override.aes = list(color="black",alpha = 1,size = 0.5)))
-      # Specify facet grid types
-        if (chart.mode=="first transition"){
-          chart <- chart +
-            ggplot2::facet_grid(group.factor ~ 1,
-                     switch="y")
-        } else {
-          chart <- chart +
-            ggplot2::facet_grid(group.factor ~ start.stage.factor,
-                     switch="y")
-        }
-      # Add risk pool proportion indicator if indicated
-        if (risk.pool.size.line==TRUE){
-          chart <- chart +
-            ggplot2::coord_cartesian(xlim=c(0,(time.horizon/365)),ylim = c(-.2, 1)) +
-            geom_stepribbon(data = surv.main.chart.risk.pool,
-                                  aes(x=.data$surv.time,ymin=((.data$surv.p.atrisk-1)/5),ymax=0),
-                                  alpha=1,fill=risk.pool.fill.color,show.legend = FALSE,color="black")
-        } else {
-          chart <- chart +
-            ggplot2::coord_cartesian(xlim=c(0,(time.horizon/365)),ylim = c(0, 1))
-        }
-      # Add death events if indicated
-        if (is.na(death.indicator)==FALSE){
-          chart <- chart +
-            geom_stepribbon(data=df.substage.death,
-                            aes(x=.data$surv.time,ymin=.data$surv.p,ymax=.data$surv.p.reference,group=.data$reference.stage.index),
-                                  alpha=1,fill=death.fill.color,show.legend = FALSE,color="black")
-        } else {}
-      # Remove y axis facet label if there are no groups defined
-        if (anyNA(groups.order.orig)==TRUE && anyNA(groups.date.breaks)==TRUE){
-          chart <- chart +
-            ggplot2::theme(strip.text.y = element_blank())
-        } else {}
-      # Add main lines and overlays
-        chart <- chart +
-          # ggplot2::geom_step(data=surv.main.chart[surv.main.chart$start.stage.index==(surv.main.chart$end.stage.index-1),],
-          #                    aes(x=.data$surv.time,y=.data$surv.p,color=.data$end.stage.factor),size=1,
-          #                    show.legend = FALSE) +
-          ggplot2::geom_hline(yintercept=0)
       }
-    } else {
-      chart = FALSE
+    }
+    # Generate ggplot chart
+    {
+      # Generate / change colors and legend
+      {
+        if (length(main.fill.colors)==1){
+          main.fill.colors <- color.gradient(main.fill.colors,(length(stages.order)-1))
+        } else {}
+        # Add colors and generate fill list depending on options
+          legend.states <- stages.order
+          legend.fill.colors <- c("white",main.fill.colors)
+          if (!is.na(death.indicator)){
+            legend.states <- c(legend.states,death.indicator)
+            legend.fill.colors <- c(legend.fill.colors,death.fill.color)
+          } else {}
+          if (risk.pool.size.line==TRUE){
+            legend.states <- c(legend.states,"Risk pool size")
+            legend.fill.colors <- c(legend.fill.colors,risk.pool.fill.color)
+          } else {}
+          legend.states <- ordered(legend.states,labels=legend.states,levels=legend.states)
+        # Generate main chart values with larger factor list
+          surv.main.chart$end.stage.factor.legend <- ordered(as.character(surv.main.chart$end.stage.factor),
+                                                             labels = legend.states,levels=legend.states)
+      }
+      # Main plot
+      chart <- ggplot2::ggplot() +
+        geom_stepribbon(data=surv.main.chart,aes(x=.data$surv.time,ymax=.data$surv.p,fill=.data$end.stage.factor.legend,ymin=0),
+                                               alpha=1,show.legend = TRUE,color="black") +
+        ggplot2::theme_bw() %+replace%
+        ggplot2::theme(
+          panel.grid = element_blank(),
+          plot.margin = unit(c(.1,.1,.1,.1), "cm"),
+          axis.title.y=element_blank(),
+          legend.position="bottom",
+          legend.title=element_blank(),
+          legend.spacing.x = unit(0.1, 'cm'),
+          axis.text = element_text(colour="black",size=10),
+          strip.text = element_text(size = 12),
+          strip.text.x = element_text(hjust=0),
+          panel.spacing = unit(1, "lines")
+        ) +
+        ggplot2::scale_x_continuous(expand = c(0, 0),
+                          labels=x.scale.function,
+                          breaks = c(0,round2(time.horizon/365,0))) +
+        ggplot2::xlab("Time (years) from start of stage") +
+        ggplot2::scale_y_continuous(expand = c(0, 0),labels=percent) +
+        ggplot2::scale_color_manual(values=c(rep("black",length(legend.fill.colors)))) +
+        ggplot2::theme(strip.background = element_blank(),
+              strip.placement = "outside") +
+        ggplot2::scale_fill_manual(values = legend.fill.colors,limits=levels(legend.states)) +
+        ggplot2::guides(colour = guide_legend(override.aes = list(color="black",alpha = 1,size = 0.5)))
+    # Specify facet grid types
+      if (chart.mode=="first transition"){
+        chart <- chart +
+          ggplot2::facet_grid(group.factor ~ 1,
+                   switch="y")
+      } else {
+        chart <- chart +
+          ggplot2::facet_grid(group.factor ~ start.stage.factor,
+                   switch="y")
+      }
+    # Add risk pool proportion indicator if indicated
+      if (risk.pool.size.line==TRUE){
+        chart <- chart +
+          ggplot2::coord_cartesian(xlim=c(0,(time.horizon/365)),ylim = c(-.2, 1)) +
+          geom_stepribbon(data = surv.main.chart.risk.pool,
+                                aes(x=.data$surv.time,ymin=((.data$surv.p.atrisk-1)/5),ymax=0),
+                                alpha=1,fill=risk.pool.fill.color,show.legend = FALSE,color="black")
+      } else {
+        chart <- chart +
+          ggplot2::coord_cartesian(xlim=c(0,(time.horizon/365)),ylim = c(0, 1))
+      }
+    # Add death events if indicated
+      if (!is.na(death.indicator)){
+        chart <- chart +
+          geom_stepribbon(data=df.substage.death,
+                          aes(x=.data$surv.time,ymin=.data$surv.p,ymax=.data$surv.p.reference,group=.data$reference.stage.index),
+                                alpha=1,fill=death.fill.color,show.legend = FALSE,color="black")
+      } else {}
+    # Add transient events if indicated
+      if (!anyNA(ts.indicator)){
+        chart <- chart +
+          geom_stepribbon(data=df.substage.transient,
+                          aes(x=.data$surv.time,ymin=.data$surv.p,ymax=.data$surv.p.reference,group=.data$reference.stage.index),
+                                alpha=1,fill=ts.color,show.legend = FALSE,color="black")
+      } else {}
+    # Remove y axis facet label if there are no groups defined
+      if (anyNA(groups.order.orig)==TRUE && anyNA(groups.date.breaks)==TRUE){
+        chart <- chart +
+          ggplot2::theme(strip.text.y = element_blank())
+      } else {}
+    # Add main lines and overlays
+      chart <- chart +
+        # ggplot2::geom_step(data=surv.main.chart[surv.main.chart$start.stage.index==(surv.main.chart$end.stage.index-1),],
+        #                    aes(x=.data$surv.time,y=.data$surv.p,color=.data$end.stage.factor),size=1,
+        #                    show.legend = FALSE) +
+        ggplot2::geom_hline(yintercept=0)
     }
   }
   # Generate between-group statistical tests
@@ -928,9 +1161,16 @@ longitudinalcascade <- function(events.long,stages.order,
     if (!is.na(death.indicator)) { output.df <- c(output.df,
                       list("surv.death" = surv.death,"surv.death.chart" = surv.death.chart))
     } else {}
+    if (!anyNA(ts.indicator)) { output.df <- c(output.df,
+                      list("surv.transient" = surv.transient,"surv.transient.chart" = surv.transient.chart))
+    } else {}
     if ((length(groups.order)>1) | (length(groups.date.breaks)>1)) { output.df <- c(output.df,
                       list("surv.cox.ph" = cox.ph.combined,"surv.diffs" = surv.diffs.combined))
     } else {}
+    # Temporary for debugging
+    output.df <- c(output.df,
+                      list("events.wide.ts.db.1" = events.wide.ts.db.1,"df.ts.db.1" = df.ts.db.1))
+
     return(output.df)
   }
 }
