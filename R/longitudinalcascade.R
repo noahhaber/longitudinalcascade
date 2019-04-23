@@ -933,27 +933,20 @@ longitudinalcascade <- function(events.long,stages.order,
           surv.transient.chart$surv.time = surv.transient.chart$surv.time/365
         # Revise and add transient status to relevent reference frames
           gen.substage.transient.df <- function(start.stage.index,reference.stage.index,group.index){
-            #input <- surv.transient.chart[surv.transient.chart$start.stage.index==start.stage.index & surv.transient.chart$reference.stage.index==reference.stage.index & surv.transient.chart$group.index==group.index,]
             # Get main curve for transient event
               input <- surv.transient.chart[surv.transient.chart$start.stage.index==start.stage.index & surv.transient.chart$end.stage.index==reference.stage.index & surv.transient.chart$group.index==group.index,]
-            # Subtract out death if there is a death state
-            # if (!is.na(death.indicator)){
-            #   reference.death <- surv.death.chart[surv.death.chart$start.stage.index==start.stage.index & surv.death.chart$end.stage.index==(reference.stage.index) & surv.death.chart$group.index==group.index,]
-            #   input <- relative.curve(input,reference.death,over.under="under")[c("surv.p","surv.time")]
-            # } else {}
-            reference <- surv.main.chart[surv.main.chart$start.stage.index==start.stage.index & surv.main.chart$end.stage.index==(reference.stage.index) & surv.main.chart$group.index==group.index,]
-            df <- relative.curve(reference,input,over.under="over")
-            df$start.stage.index <- start.stage.index
-            df$start.stage.factor <- reference$start.stage.factor[1]
-            df$end.stage.index <- reference.stage.index
-            df$end.stage.factor <- reference$end.stage.factor[1]
-            df$group.index <- group.index
-            df$group.factor <- reference$group.factor[1]
-            df$reference.stage.index <- reference.stage.index
-            return(df)
+
+              reference <- surv.main.chart[surv.main.chart$start.stage.index==start.stage.index & surv.main.chart$end.stage.index==(reference.stage.index) & surv.main.chart$group.index==group.index,]
+              df <- relative.curve(reference,input,over.under="over")
+              df$start.stage.index <- start.stage.index
+              df$start.stage.factor <- reference$start.stage.factor[1]
+              df$end.stage.index <- reference.stage.index
+              df$end.stage.factor <- reference$end.stage.factor[1]
+              df$group.index <- group.index
+              df$group.factor <- reference$group.factor[1]
+              df$reference.stage.index <- reference.stage.index
+              return(df)
           }
-          #df.substage.stages <- unique(surv.transient.chart[c("start.stage.index","reference.stage.index","group.index")])
-          #df.substage.transient <- do.call("rbind",lapply(1:nrow(df.substage.stages),function(x) gen.substage.transient.df(df.substage.stages$start.stage.index[x],df.substage.stages$reference.stage.index[x],df.substage.stages$group.index[x])))
           df.substage.stages <- unique(surv.transient.chart[c("start.stage.index","group.index")])
           df.substage.transient <- do.call("rbind",lapply(1:nrow(df.substage.stages),function(x) gen.substage.transient.df(df.substage.stages$start.stage.index[x],df.substage.stages$start.stage.index[x]+1,df.substage.stages$group.index[x])))
       } else {}
@@ -965,12 +958,17 @@ longitudinalcascade <- function(events.long,stages.order,
             if (!is.na(death.indicator)){
               surv.death.chart <- surv.death.chart[surv.death.chart$start.stage.index == 1,]
             } else {}
-            if (anyNA(ts.indicator)){
+            if (!anyNA(ts.indicator)){
               surv.transient.chart <- surv.transient.chart[surv.transient.chart$start.stage.index == 1,]
             } else {}
           } else {}
         # Shift sub-mortality to top, and drop sub-transitions accordingly
           if (sub.stage.mortality.mode=="shifted"){
+            if (chart.mode == "first transition"){
+              max.start.stage <- 1
+            } else {
+              max.start.stage <- length(stages.order)-1
+            }
             # Generate shifted death
               surv.substage.death.chart.temp <- surv.substage.death.chart[0,]
               for (group.index in 1:length(groups.order)){
@@ -999,7 +997,8 @@ longitudinalcascade <- function(events.long,stages.order,
             # Generate shifted main stages
               surv.dataset.chart.temp <- surv.main.chart[0,]
               for (group.index in 1:length(groups.order)){
-                for (start.stage.index in 1:(length(stages.order)-1)){
+                # for (start.stage.index in 1:(length(stages.order)-1)){
+                for (start.stage.index in 1:(max.start.stage){
                   for (end.stage.index in (start.stage.index+1):length(stages.order)){
                     reference <- surv.main.chart[surv.main.chart$start.stage.index==start.stage.index &
                                                       surv.main.chart$end.stage.index==end.stage.index &
