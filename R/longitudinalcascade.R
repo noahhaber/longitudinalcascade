@@ -16,6 +16,7 @@
 #' @param censorship.date (optional) By default, censorship is set to the last date of data collection. If you would prefer to set a different date than that, enter it into censorship.date argument as a date.
 #' @param allow.sub.stages Sub-lines indicate subsequent transitions across the cascade. If TRUE, the main chart will show transitions to all possible subsequent events. For example, if there are 4 stages (1-4), the leftmost chart will show each transition from 1-2, 1-3, and 1-4, while the next chart will show 2-3 and 2-4, and the last chart will show only 3-4. If FALSE, the charts will only show transition to the subsequent stage.
 #' @param allow.sub.stage.mortality Sub-stage-mortality indicate subsequent mortality transitions across the cascade. If TRUE, the main chart will show transitions to all possible subsequent events. For example, if there are 4 stages (1-4), the leftmost chart will show each transition from 1-2, 1-3, and 1-4, while the next chart will show 2-3 and 2-4, and the last chart will show only 3-4. If FALSE, the charts will only show transition to the subsequent stage.
+#' @param sub.stage.mortality.mode By default, sub-stage mortality is shown as a transition underneath the main transition ("standard"). If set to "shifted" substage mortality will be shifted to the top of the chart, and all substages will be shifted downward accordingly
 #' @param skip.mode This option shows "skips" across the cascade in each chart, as indicated by the y intercept. If "none" (default) each stage will start only with people who have not moved on to a subsequent stage, i.e. the y intercept will always be 0. If set to "internal" an individual can enter into a stage even if they have "skipped" through it. For example, an individual may go straight from stage 1 to stage 3, skipping 2. If this indicator is FALSE, the stage transition chart from 2-3 will not contain this individual in the denomenator. If TRUE, this individual will be counted in the denomenator for this transition, but will be counted as having transitioned into stage 3 immediately upon entering stage 2. If "external" individuals contribute person-time and are in the y-axis of transitions even prior to their first recorded stage date.
 #' @param time.horizon This option shows the maximum range of each stage in days. Defaults to 365 days (1 year).
 #' @param chart.mode By default, the chart is set to a stage-by-stage panel view ("stage panels"). Alternatively, it may be desirable to have only the first panel showing the overall experience from the first entry condition, as indicated by the "first transition" option.
@@ -67,7 +68,7 @@
 longitudinalcascade <- function(events.long,stages.order,
                          groups.order=NA,groups.date.breaks=NA,groups.date.breaks.labels=NA,
                          death.indicator=NA,censorship.indicator=NA,censorship.date = "lastdate",
-                         allow.sub.stages=FALSE,allow.sub.stage.mortality=FALSE,
+                         allow.sub.stages=FALSE,allow.sub.stage.mortality=FALSE,sub.stage.mortality.mode="standard",
                          skip.mode="none",
                          time.horizon=365,
                          main.fill.colors = "#4472C4",death.fill.color = "#FF6A6A",
@@ -915,7 +916,7 @@ longitudinalcascade <- function(events.long,stages.order,
             return(df)
           }
           df.substage.stages <- unique(surv.death.chart[c("start.stage.index","reference.stage.index","group.index")])
-          df.substage.death <- do.call("rbind",lapply(1:nrow(df.substage.stages),function(x) gen.substage.mort.df(df.substage.stages$start.stage.index[x],df.substage.stages$reference.stage.index[x],df.substage.stages$group.index[x])))
+          surv.substage.death.chart <- do.call("rbind",lapply(1:nrow(df.substage.stages),function(x) gen.substage.mort.df(df.substage.stages$start.stage.index[x],df.substage.stages$reference.stage.index[x],df.substage.stages$group.index[x])))
       } else {}
       # Transient statuses
       if (!anyNA(ts.indicator)){
@@ -968,6 +969,65 @@ longitudinalcascade <- function(events.long,stages.order,
               surv.transient.chart <- surv.transient.chart[surv.transient.chart$start.stage.index == 1,]
             } else {}
           } else {}
+        # Shift sub-mortality to top, and drop sub-transitions accordingly
+          if (sub.stage.mortality.mode=="shifted"){
+            # Generate shifted death
+              surv.substage.death.chart.temp <- surv.substage.death.chart[0,]
+              for (group.index in 1:length(groups.order)){
+                for (start.stage.index in 1:(length(stages.order)-1)){
+                    reference <- surv.substage.death.chart[surv.substage.death.chart$start.stage.index==start.stage.index &
+                                                             surv.substage.death.chart$end.stage.index==start.stage.index &
+                                                             surv.substage.death.chart$group.index==group.index,]
+                    surv.substage.death.chart.temp <- rbind(surv.substage.death.chart.temp,reference)
+                  for (end.stage.index in (start.stage.index+1):length(stages.order)){
+                    reference <- surv.substage.death.chart.temp[surv.substage.death.chart.temp$start.stage.index==start.stage.index &
+                                                             surv.substage.death.chart.temp$end.stage.index==end.stage.index-1 &
+                                                             surv.substage.death.chart.temp$group.index==group.index,]
+                    input <- surv.substage.death.chart[surv.substage.death.chart$start.stage.index==start.stage.index &
+                                                             surv.substage.death.chart$end.stage.index==end.stage.index &
+                                                             surv.substage.death.chart$group.index==group.index,]
+                    input$surv.p <- input$surv.p.reference-input$surv.p
+                    combined <- relative.curve(reference[c("surv.p","surv.time")],input[c("surv.p","surv.time")],"under")
+                    combined$com <- 1
+                    input$com <- 1
+                    combined <- merge(combined,input[1,!names(input) %in% c("surv.p","surv.time","surv.p.reference","surv.p.input")],by="com",all.x=TRUE)
+                    combined$com <- NULL
+                    surv.substage.death.chart.temp <- rbind(surv.substage.death.chart.temp,reference,combined)
+                  }
+                }
+              }
+            # Generate shifted main stages
+              surv.dataset.chart.temp <- surv.main.chart[0,]
+              for (group.index in 1:length(groups.order)){
+                for (start.stage.index in 1:(length(stages.order)-1)){
+                  for (end.stage.index in (start.stage.index+1):length(stages.order)){
+                    reference <- surv.main.chart[surv.main.chart$start.stage.index==start.stage.index &
+                                                      surv.main.chart$end.stage.index==end.stage.index &
+                                                      surv.main.chart$group.index==group.index,]
+                    input.1 <- surv.substage.death.chart.temp[surv.substage.death.chart.temp$start.stage.index==start.stage.index &
+                                                             surv.substage.death.chart.temp$end.stage.index==end.stage.index &
+                                                             surv.substage.death.chart.temp$group.index==group.index,]
+                    input.2 <- surv.substage.death.chart.temp[surv.substage.death.chart.temp$start.stage.index==start.stage.index &
+                                                             surv.substage.death.chart.temp$end.stage.index==length(stages.order) &
+                                                             surv.substage.death.chart.temp$group.index==group.index,]
+
+                    input.1$surv.p <- input.1$surv.p.reference
+                    combined <- relative.curve(input.1[c("surv.p","surv.time")],input.2[c("surv.p","surv.time")],"under")
+                    combined <- relative.curve(reference[c("surv.p","surv.time")],combined[c("surv.p","surv.time")],"under")
+                    combined$com <- 1
+                    reference$com <- 1
+                    combined <- merge(combined,reference[1,!names(reference) %in% c("surv.p","surv.time","surv.p.reference","surv.p.input")],by="com",all.x=TRUE)
+                    combined$com <- NULL
+                    reference$com <- NULL
+                    #surv.dataset.chart.temp <- rbind(surv.dataset.chart.temp,reference[,!names(reference) %in% c("surv.p.reference","surv.p.input")],combined[,!names(combined) %in% c("surv.p.reference","surv.p.input")])
+                    surv.dataset.chart.temp <- rbind(surv.dataset.chart.temp,combined[,!names(combined) %in% c("surv.p.reference","surv.p.input")])
+                  }
+                }
+              }
+            # Replace death and survival datasets with shifted version
+              surv.main.chart <- surv.dataset.chart.temp
+              surv.substage.death.chart <- surv.substage.death.chart.temp
+        } else {}
       }
     }
     # Generate ggplot chart
@@ -1041,19 +1101,19 @@ longitudinalcascade <- function(events.long,stages.order,
         chart <- chart +
           ggplot2::coord_cartesian(xlim=c(0,(time.horizon/365)),ylim = c(0, 1))
       }
-    # Add death events if indicated
-      if (!is.na(death.indicator)){
-        chart <- chart +
-          geom_stepribbon(data=df.substage.death,
-                          aes(x=.data$surv.time,ymin=.data$surv.p,ymax=.data$surv.p.reference,group=.data$reference.stage.index),
-                                alpha=1,fill=death.fill.color,show.legend = FALSE,color="black")
-      } else {}
     # Add transient events if indicated
       if (!anyNA(ts.indicator)){
         chart <- chart +
           geom_stepribbon(data=df.substage.transient,
                           aes(x=.data$surv.time,ymin=.data$surv.p,ymax=.data$surv.p.reference,group=.data$reference.stage.index),
                                 alpha=1,fill=ts.color,show.legend = FALSE,color="black")
+      } else {}
+    # Add death events if indicated
+      if (!is.na(death.indicator)){
+        chart <- chart +
+          geom_stepribbon(data=surv.substage.death.chart,
+                          aes(x=.data$surv.time,ymin=.data$surv.p,ymax=.data$surv.p.reference,group=.data$reference.stage.index),
+                                alpha=1,fill=death.fill.color,show.legend = FALSE,color="black")
       } else {}
     # Remove y axis facet label if there are no groups defined
       if (anyNA(groups.order.orig)==TRUE && anyNA(groups.date.breaks)==TRUE){
@@ -1168,8 +1228,11 @@ longitudinalcascade <- function(events.long,stages.order,
                       list("surv.cox.ph" = cox.ph.combined,"surv.diffs" = surv.diffs.combined))
     } else {}
     # Temporary for debugging
-    output.df <- c(output.df,
-                      list("events.wide.ts.db.1" = events.wide.ts.db.1,"df.ts.db.1" = df.ts.db.1))
+    if (!is.na(death.indicator) & allow.sub.stage.mortality==TRUE){
+      output.df <- c(output.df,
+                      list("surv.substage.death.chart" = surv.substage.death.chart))
+    }
+
 
     return(output.df)
   }
