@@ -972,7 +972,8 @@ longitudinalcascade <- function(events.long,stages.order,
             # Generate shifted death
               surv.substage.death.chart.temp <- surv.substage.death.chart[0,]
               for (group.index in 1:length(groups.order)){
-                for (start.stage.index in 1:(length(stages.order)-1)){
+                for (start.stage.index in 1:(max.start.stage)){
+                #for (start.stage.index in 1:(length(stages.order)-1)){
                     reference <- surv.substage.death.chart[surv.substage.death.chart$start.stage.index==start.stage.index &
                                                              surv.substage.death.chart$end.stage.index==start.stage.index &
                                                              surv.substage.death.chart$group.index==group.index,]
@@ -998,7 +999,7 @@ longitudinalcascade <- function(events.long,stages.order,
               surv.dataset.chart.temp <- surv.main.chart[0,]
               for (group.index in 1:length(groups.order)){
                 # for (start.stage.index in 1:(length(stages.order)-1)){
-                for (start.stage.index in 1:(max.start.stage){
+                for (start.stage.index in 1:(max.start.stage)){
                   for (end.stage.index in (start.stage.index+1):length(stages.order)){
                     reference <- surv.main.chart[surv.main.chart$start.stage.index==start.stage.index &
                                                       surv.main.chart$end.stage.index==end.stage.index &
@@ -1083,7 +1084,8 @@ longitudinalcascade <- function(events.long,stages.order,
       if (chart.mode=="first transition"){
         chart <- chart +
           ggplot2::facet_grid(group.factor ~ 1,
-                   switch="y")
+                   switch="y") +
+          ggplot2::theme(strip.text.x = element_blank())
       } else {
         chart <- chart +
           ggplot2::facet_grid(group.factor ~ start.stage.factor,
@@ -1119,11 +1121,8 @@ longitudinalcascade <- function(events.long,stages.order,
         chart <- chart +
           ggplot2::theme(strip.text.y = element_blank())
       } else {}
-    # Add main lines and overlays
+    # Add overlays
       chart <- chart +
-        # ggplot2::geom_step(data=surv.main.chart[surv.main.chart$start.stage.index==(surv.main.chart$end.stage.index-1),],
-        #                    aes(x=.data$surv.time,y=.data$surv.p,color=.data$end.stage.factor),size=1,
-        #                    show.legend = FALSE) +
         ggplot2::geom_hline(yintercept=0)
     }
   }
