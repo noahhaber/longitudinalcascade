@@ -19,13 +19,15 @@
 #' @param sub.stage.mortality.mode By default, sub-stage mortality is shown as a transition underneath the main transition ("standard"). If set to "shifted" substage mortality will be shifted to the top of the chart, and all substages will be shifted downward accordingly
 #' @param skip.mode This option shows "skips" across the cascade in each chart, as indicated by the y intercept. If "none" (default) each stage will start only with people who have not moved on to a subsequent stage, i.e. the y intercept will always be 0. If set to "internal" an individual can enter into a stage even if they have "skipped" through it. For example, an individual may go straight from stage 1 to stage 3, skipping 2. If this indicator is FALSE, the stage transition chart from 2-3 will not contain this individual in the denomenator. If TRUE, this individual will be counted in the denomenator for this transition, but will be counted as having transitioned into stage 3 immediately upon entering stage 2. If "external" individuals contribute person-time and are in the y-axis of transitions even prior to their first recorded stage date.
 #' @param time.horizon This option shows the maximum range of each stage in days. Defaults to 365 days (1 year).
+#' @param TTE.quantiles This option sets the quantiles measured for the quantile time to event outputs, using a c() list. By default, this is set to 0.2, 0.5 (i.e. the median), and 0.75.
 #' @param chart.mode By default, the chart is set to a stage-by-stage panel view ("stage panels"). Alternatively, it may be desirable to have only the first panel showing the overall experience from the first entry condition, as indicated by the "first transition" option.
 #' @param risk.pool.size.line Setting to TRUE adds an indicator of risk pool remaining to the main charts as a line reflected beneath the main chart, showing the proportion of the original risk pool remaining at each time point. Defaults to FALSE.
 #' @param main.fill.colors (optional) This defines the color scheme of the stage transition graphs, as a string indicator for color or a c() list of colors. If the colors contain only one color, the color scheme will automatically generate progressively faded versions of the initial color provided for the remaining stage transitions. Otherwise, a list which is exactly one fewer than the # of stages must be provided, in the order of stage trasitions.
 #' @param death.fill.color (optional) This defines the color scheme for the death stage transition, as a string indicator for color.
 #' @param risk.pool.fill.color (optional) This defines the color scheme for the risk pool graphic, as a string indicator for color.
-#' @param background.prior.event (optional) This changes the background of the facetted chart to be the color for the prior event.
+#' @param background.prior.event (optional) This changes the background of the faceted chart to be the color for the prior event.
 #' @param suppress.messages (Option) Suppresses tips and messages about the dataset
+#' @param x.axis.title (Option) Changes the x axis label
 #' @import survival ggplot2 dplyr tidyr zoo scales grDevices
 #' @importFrom stats relevel
 #' @importFrom rlang .data
@@ -71,13 +73,15 @@ longitudinalcascade <- function(events.long,stages.order,
                          allow.sub.stages=FALSE,allow.sub.stage.mortality=FALSE,sub.stage.mortality.mode="standard",
                          skip.mode="none",
                          time.horizon=365,
+                         TTE.quantiles=c(0.25,0.50,0.75),
                          main.fill.colors = "#4472C4",death.fill.color = "#FF6A6A",
                          chart.mode = "stage panels",
                          ts.indicator = NA,ts.gap.time = 90,ts.start.stage=1,ts.end.stage=NA,ts.color="#a2f2da",
                          risk.pool.size.line=FALSE,
                          risk.pool.fill.color = "#90dbb2",
                          background.prior.event=TRUE,
-                         suppress.messages = FALSE) {
+                         suppress.messages = FALSE,
+                         x.axis.title = "Time (years) from start of stage") {
 
   # Functions for general use
   {
@@ -157,7 +161,12 @@ longitudinalcascade <- function(events.long,stages.order,
           } else if (surv.data$surv.time[1]<0){
             print("Error, negative time disallowed")
           } else {}
-        return(surv.data)
+        # Generate percentile TTE (i.e. median, etc)
+          TTE.quantile <- quantile.survfit(surv, TTE.quantiles,conf.int=TRUE)
+        # Prepare export data
+          output <- list("surv.curve" = surv.data,"survfit.object" = surv,"TTE.quantile" = TTE.quantile)
+        # Export data
+          return(output)
       }
     # Color gradient creator
       color.gradient <- function(original.color,number.divisions,darken=0){
@@ -182,7 +191,7 @@ longitudinalcascade <- function(events.long,stages.order,
     # X scale creator functions
       round2 <- function(x, n=0) {scale<-10^n; trunc(x*scale+sign(x)*0.5)/scale}
       x.scale.function <- function(x) round2(x,0)
-    # Step ribbon function. Note: Original author of code was Triad sou from the RcmdrPlugin.KMggplot2 package
+    # Step ribbon function. Note: Original author of code was Triad Sou from the RcmdrPlugin.KMggplot2 package
       {
       geom_stepribbon <- function(
         mapping = NULL, data = NULL, stat = "identity", position = "identity",
@@ -231,7 +240,157 @@ longitudinalcascade <- function(events.long,stages.order,
           data
         }
       )
-    }
+      }
+    # Quantile survfit, Note: Original author of this code is Terry M Therneau
+      {
+        findq <- function(x, y, p, tol) {
+            # This case occurs for a survival curve whose upper limit never drops below 1
+            if (max(y, na.rm=T) < min(p)) return(rep(NA, length(p)))
+
+            # Remove duplicate y values, i.e., the censors, since dups cause
+            #  issues for approx
+            xmax <- x[length(x)]
+            dups <- duplicated(y)
+            if (any(dups)) {
+                x <- x[!dups]
+                y <- y[!dups]
+            }
+            n <- length(y)
+            indx1 <- approx(y+tol, 1:n, p, method="constant", f=1)$y
+            indx2 <- approx(y-tol, 1:n, p, method="constant", f=1)$y
+            quant <- (x[indx1] + x[indx2])/2
+            quant[p==0] <- x[1]
+            if (!is.na(y[n])) {
+                lastpt <- (abs(p- y[n]) < tol)  # end of the curve
+                if (any(lastpt)) quant[lastpt] <- (x[indx1[lastpt]] + xmax)/2
+            }
+            quant
+            }
+        doquant <- function(p, time, surv, upper, lower, firstx, tol) {
+            qq <- findq(c(firstx,time), c(0, 1-surv), p, tol)
+            if (missing(upper)) qq
+            else rbind(qq, findq(c(firstx, time), c(0, 1-lower), p, tol),
+                           findq(c(firstx, time), c(0, 1-upper), p, tol))
+            }
+        quantile.survfit <- function(x, probs=c(.25, .5, .75), conf.int=TRUE,
+                                     tolerance= sqrt(.Machine$double.eps), ...) {
+            if (!inherits(x, "survfit")) stop("Must be a survfit object")
+            if (any(!is.numeric(probs)) || any(is.na(probs)))
+                stop("invalid probability")
+            if (any(probs <0 | probs >1)) stop("Invalid probability")
+            if (is.null(x$lower)) conf.int <- FALSE
+            nprob <- length(probs)
+            pname <- format(probs*100)
+
+            # What do we report for p=0?  Use x$start.time if it exists, 0 otherwise
+            xmin <- if (is.null(x$start.time)) 0 else x$start.time
+
+            # There are 8 cases: strata yes/no
+            #                    ncol(x$surv) =1 or >1
+            #                    conf.int = T/F
+            if (is.null(x$strata)) {
+                if (is.matrix(x$surv) && ncol(x$surv) >1) {
+                    qmat <- matrix(0., ncol=nprob, nrow=ncol(x$surv))
+                    dimnames(qmat) <- list(dimnames(x$surv)[[2]], pname)
+                    if (conf.int) {
+                        qupper <- qlower <- qmat
+                        for (i in 1:ncol(x$surv)) {
+                            temp <- doquant(probs, x$time, x$surv[,i], x$upper[,i],
+                                            x$lower[,i], xmin, tolerance)
+                            qmat[i,] <- temp[1,]
+                            qupper[i,] <- temp[3,]
+                            qlower[i,] <- temp[2,]
+                        }
+                        return(list(quantile=qmat, lower=qlower, upper=qupper))
+                    }
+                    else {
+                        for (i in 1:ncol(x$surv))
+                            qmat[i,] <- doquant(probs, x$time, x$surv[,i], firstx=xmin,
+                                                tol=tolerance)
+                        return(qmat)
+                    }
+                }
+                else {
+                    # No strata and no matrix
+                    if (conf.int) {
+                        temp <- doquant(probs, x$time, x$surv, x$upper, x$lower, xmin,
+                                        tolerance)
+                        dimnames(temp) <- list(NULL, pname)
+                        return(list(quantile=temp[1,], lower=temp[2,], upper=temp[3,]))
+                    }
+                    else {
+                        temp <- doquant(probs, x$time, x$surv, firstx=xmin,
+                                        tol =tolerance)
+                        names(temp) <- pname
+                        return(temp)
+                    }
+                }
+            }
+
+            else {
+                nstrat <- length(x$strata)
+                if (is.matrix(x$surv) && ncol(x$surv) >1) {
+                    # uncommon case, e.g., predicted survivals from a Cox model
+                    # return an array with strata as the first dimension, and
+                    #   the probabilites as the third.
+                    qmat <- array(0., dim=c(nstrat, ncol(x$surv), nprob))
+                    dimnames(qmat) <-list(names(x$strata), dimnames(x$surv)[[2]], pname)
+                    if (conf.int) {
+                        qupper <- qlower <- qmat
+                        for (strat in 1:nstrat) {
+                            z <- x[strat,]
+                            for (i in 1:ncol(z$surv)) {
+                                temp <- doquant(probs, z$time, z$surv[,i],
+                                                z$upper[,i], z$lower[,i], xmin,tolerance)
+                                qmat[strat,i,] <- temp[1,]
+                                qupper[strat,i,] <- temp[3,]
+                                qlower[strat,i,] <- temp[2,]
+                            }
+                        }
+                        return(list(quantile=qmat, lower=qlower, upper=qupper))
+                    }
+                    else {
+                        for (strat in 1:nstrat) {
+                            z <- x[strat]
+                            for (i in 1:ncol(z$surv))
+                                qmat[strat,i,] <- doquant(probs, z$time, z$surv[,i],
+                                                          firstx=xmin, tol=tolerance)
+                        }
+                        return(qmat)
+                    }
+                 }
+                else {
+                    # Only a strata, the most common case
+                    qmat <- matrix(0., nstrat, nprob)
+                    dimnames(qmat) <- list(names(x$strata), pname)
+                    if (conf.int) {
+                        qupper <- qlower <- qmat
+                        for (i in 1:nstrat) {
+                            z <- x[i]
+                            temp <- doquant(probs, z$time, z$surv, z$upper, z$lower,
+                                            xmin, tolerance)
+                            qmat[i,] <- temp[1,]
+                            qupper[i,] <- temp[3,]
+                            qlower[i,] <- temp[2,]
+                        }
+                        return(list(quantile=qmat, lower=qlower, upper=qupper))
+                    }
+                    else {
+                        for (i in 1:nstrat) {
+                            z <- x[i]
+                            qmat[i,] <- doquant(probs, z$time, z$surv, firstx=xmin,
+                                                tol = tolerance)
+                        }
+                        return(qmat)
+                    }
+                }
+            }
+        }
+      }
+    # Function for rbinding ALL of the outputs of a function
+      rbind.lists <- function(a, b) {
+        lapply(1:(length(a)),function(x) rbind(a[[x]],b[[x]]))
+      }
   }
   # Check settings to make sure compatible, give an error, warning, and/or fix settings if something is wrong
   {
@@ -244,6 +403,7 @@ longitudinalcascade <- function(events.long,stages.order,
       if ((allow.sub.stage.mortality==TRUE) & is.na(death.indicator)){
         stop("Sub-stage mortality requires specifying an indicator for death.")
       } else {}
+    # Check each stage
   }
   # Generate main wide dataset
   {
@@ -401,7 +561,7 @@ longitudinalcascade <- function(events.long,stages.order,
       }
       # Deal with scenarios where censorship event occurs on or before stage event, by assuming censorship is false, and sets it to the last date
         for (i in 1:(length(stages.order))){
-          warning.f(paste0("At least one censorship event occurs before stage ",stages.order[i],". Changed censorship date(s) to last date recorded for those cases."))
+          #warning.f(paste0("At least one censorship event occurs before stage ",stages.order[i],". Changed censorship date(s) to last date recorded for those cases."))
           if (any((events.wide$date.censorship < events.wide[[paste0("date.stage.",i)]]) & !is.na(events.wide[[paste0("date.stage.",i)]]) & (!is.na(events.wide$date.censorship)))){
             events.wide$date.censorship <- ifelse((events.wide$date.censorship < events.wide[[paste0("date.stage.",i)]]) & !is.na(events.wide[[paste0("date.stage.",i)]]) & (!is.na(events.wide$date.censorship)),
                                     last.date,events.wide$date.censorship)
@@ -409,12 +569,11 @@ longitudinalcascade <- function(events.long,stages.order,
           }
         }
     }
-    # Generate dataset for recording TTE data
+    # Generate dataset for generating individual TTE data
     {
       TTE <- events.wide %>%
         select("ID",ends_with("group"))
     }
-    #
   }
   # Create stage-by-stage events and survival
   {
@@ -481,29 +640,40 @@ longitudinalcascade <- function(events.long,stages.order,
                 # Get time to event
                   df.surv$time.to.event <- df.surv$end.date-df.surv$start.date
                 # Generate TTE dataset output and merge with larger dataset
-                  colname.tte <- paste0("time.stage.",start.stage.index,".to.",end.stage.index)
+                  colname.TTE <- paste0("time.stage.",start.stage.index,".to.",end.stage.index)
                   colname.censorship <- paste0("censorship.stage.",start.stage.index,".to.",end.stage.index)
-                  df.surv[[colname.tte]] <- df.surv$time.to.event
+                  df.surv[[colname.TTE]] <- df.surv$time.to.event
                   df.surv[[colname.censorship]] <- df.surv$censorship
-                  TTE.temp <- df.surv[c("ID",colname.tte,colname.censorship)]
+                  TTE <- df.surv[c("ID",colname.TTE,colname.censorship)]
+                  TTE.temp <- df.surv[c("ID",colname.TTE,colname.censorship)]
                   TTE <<- merge(TTE,TTE.temp,by="ID",all.x=TRUE,all.y=FALSE)
-                  if (length(TTE[[paste0(colname.tte,".x")]])!=0){
-                    TTE[[colname.tte]] <<- ifelse(is.na(TTE[[paste0(colname.tte,".x")]]),
-                                                  TTE[[paste0(colname.tte,".y")]],TTE[[paste0(colname.tte,".x")]])
+                  if (length(TTE[[paste0(colname.TTE,".x")]])!=0){
+                    TTE[[colname.TTE]] <<- ifelse(is.na(TTE[[paste0(colname.TTE,".x")]]),
+                                                  TTE[[paste0(colname.TTE,".y")]],TTE[[paste0(colname.TTE,".x")]])
                     TTE[[colname.censorship]] <<- ifelse(is.na(TTE[[paste0(colname.censorship,".x")]]),
                                                   TTE[[paste0(colname.censorship,".y")]],TTE[[paste0(colname.censorship,".x")]])
-                    TTE[[paste0(colname.tte,".x")]] <<- NULL
-                    TTE[[paste0(colname.tte,".y")]] <<- NULL
+                    TTE[[paste0(colname.TTE,".x")]] <<- NULL
+                    TTE[[paste0(colname.TTE,".y")]] <<- NULL
                     TTE[[paste0(colname.censorship,".x")]] <<- NULL
                     TTE[[paste0(colname.censorship,".y")]] <<- NULL
                   }
                 # Pull survival curves
-                  output <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)
-                  output$start.stage.index <- start.stage.index
-                  output$end.stage.index <- end.stage.index
-                  output$group.index <- group.index
+                  surv.data <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)
+                # Generate quantile TTEs
+                  quantile.TTE.q <- t(unlist(surv.data$TTE.quantile[1]))
+                  quantile.TTE.q.lb <- t(unlist(surv.data$TTE.quantile[2]))
+                  quantile.TTE.q.ub <- t(unlist(surv.data$TTE.quantile[3]))
+                  colnames(quantile.TTE.q) <- paste0("q.",colnames(quantile.TTE.q))
+                  colnames(quantile.TTE.q.lb) <- paste0("q.",colnames(quantile.TTE.q.lb))
+                  colnames(quantile.TTE.q.ub) <- paste0("q.",colnames(quantile.TTE.q.ub))
+                  quantile.TTE <- as.data.frame(cbind(start.stage.index,end.stage.index,group.index,quantile.TTE.q,quantile.TTE.q.lb,quantile.TTE.q.ub))
+                # Generate main survival curve outputs
+                  surv.curve <- surv.data$surv.curve
+                  surv.curve$start.stage.index <- start.stage.index
+                  surv.curve$end.stage.index <- end.stage.index
+                  surv.curve$group.index <- group.index
                 # Return output
-                  return(output)
+                  return(list("surv.curve" = surv.curve,"quantile.TTE" = quantile.TTE))
               }
             # Determine which stages to run
               if (allow.sub.stages==TRUE) {
@@ -512,8 +682,12 @@ longitudinalcascade <- function(events.long,stages.order,
                 end.stage.index.list <- (start.stage.index+1):(start.stage.index+1)
               }
             # Run main stages
-              surv <- do.call("rbind",lapply(end.stage.index.list,function(x)
+              # surv <- do.call("rbind",lapply(end.stage.index.list,function(x)
+              #   surv.stats.main.stages(events.wide[events.wide$eligible==1,],start.stage.index,x,group.index)))
+              outputs <- Reduce(rbind.lists, lapply(end.stage.index.list,function(x)
                 surv.stats.main.stages(events.wide[events.wide$eligible==1,],start.stage.index,x,group.index)))
+              surv <- outputs[[1]]
+              quantile.TTE <- outputs[[2]]
           } else {}
           # Death stage transitions
           if (run.type=="death") {
@@ -550,24 +724,24 @@ longitudinalcascade <- function(events.long,stages.order,
               # Get time to event
                 df.surv$time.to.event <- df.surv$end.date-df.surv$start.date
               # Generate TTE dataset output and merge with larger dataset
-                colname.tte <- paste0("time.stage.",start.stage.index,".to.death.",end.stage.index-1,".to.",end.stage.index)
+                colname.TTE <- paste0("time.stage.",start.stage.index,".to.death.",end.stage.index-1,".to.",end.stage.index)
                 colname.censorship <- paste0("censorship.stage.",start.stage.index,".to.death.",end.stage.index-1,".to.",end.stage.index)
-                df.surv[[colname.tte]] <- df.surv$time.to.event
+                df.surv[[colname.TTE]] <- df.surv$time.to.event
                 df.surv[[colname.censorship]] <- df.surv$censorship
-                TTE.temp <- df.surv[c("ID",colname.tte,colname.censorship)]
+                TTE.temp <- df.surv[c("ID",colname.TTE,colname.censorship)]
                 TTE <<- merge(TTE,TTE.temp,by="ID",all.x=TRUE,all.y=FALSE)
-                if (length(TTE[[paste0(colname.tte,".x")]])!=0){
-                  TTE[[colname.tte]] <<- ifelse(is.na(TTE[[paste0(colname.tte,".x")]]),
-                                                TTE[[paste0(colname.tte,".y")]],TTE[[paste0(colname.tte,".x")]])
+                if (length(TTE[[paste0(colname.TTE,".x")]])!=0){
+                  TTE[[colname.TTE]] <<- ifelse(is.na(TTE[[paste0(colname.TTE,".x")]]),
+                                                TTE[[paste0(colname.TTE,".y")]],TTE[[paste0(colname.TTE,".x")]])
                   TTE[[colname.censorship]] <<- ifelse(is.na(TTE[[paste0(colname.censorship,".x")]]),
                                                 TTE[[paste0(colname.censorship,".y")]],TTE[[paste0(colname.censorship,".x")]])
-                  TTE[[paste0(colname.tte,".x")]] <<- NULL
-                  TTE[[paste0(colname.tte,".y")]] <<- NULL
+                  TTE[[paste0(colname.TTE,".x")]] <<- NULL
+                  TTE[[paste0(colname.TTE,".y")]] <<- NULL
                   TTE[[paste0(colname.censorship,".x")]] <<- NULL
                   TTE[[paste0(colname.censorship,".y")]] <<- NULL
                 }
               # Pull survival curves
-                output <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)
+                output <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)$surv.curve
                 output$start.stage.index <- start.stage.index
                 output$end.stage.index <- end.stage.index
                 output$reference.stage.index <- end.stage.index - 1
@@ -603,24 +777,24 @@ longitudinalcascade <- function(events.long,stages.order,
                   # Get time to event
                     df.surv$time.to.event <- df.surv$end.date-df.surv$start.date
                   # Generate TTE dataset output and merge with larger dataset
-                    colname.tte <- paste0("time.stage.",start.stage.index,".to.death.",end.stage.index,".to.",end.stage.index+1)
+                    colname.TTE <- paste0("time.stage.",start.stage.index,".to.death.",end.stage.index,".to.",end.stage.index+1)
                     colname.censorship <- paste0("censorship.stage.",start.stage.index,".to.death.",end.stage.index,".to.",end.stage.index+1)
-                    df.surv[[colname.tte]] <- df.surv$time.to.event
+                    df.surv[[colname.TTE]] <- df.surv$time.to.event
                     df.surv[[colname.censorship]] <- df.surv$censorship
-                    TTE.temp <- df.surv[c("ID",colname.tte,colname.censorship)]
+                    TTE.temp <- df.surv[c("ID",colname.TTE,colname.censorship)]
                     TTE <<- merge(TTE,TTE.temp,by="ID",all.x=TRUE,all.y=FALSE)
-                    if (length(TTE[[paste0(colname.tte,".x")]])!=0){
-                      TTE[[colname.tte]] <<- ifelse(is.na(TTE[[paste0(colname.tte,".x")]]),
-                                                    TTE[[paste0(colname.tte,".y")]],TTE[[paste0(colname.tte,".x")]])
+                    if (length(TTE[[paste0(colname.TTE,".x")]])!=0){
+                      TTE[[colname.TTE]] <<- ifelse(is.na(TTE[[paste0(colname.TTE,".x")]]),
+                                                    TTE[[paste0(colname.TTE,".y")]],TTE[[paste0(colname.TTE,".x")]])
                       TTE[[colname.censorship]] <<- ifelse(is.na(TTE[[paste0(colname.censorship,".x")]]),
                                                     TTE[[paste0(colname.censorship,".y")]],TTE[[paste0(colname.censorship,".x")]])
-                      TTE[[paste0(colname.tte,".x")]] <<- NULL
-                      TTE[[paste0(colname.tte,".y")]] <<- NULL
+                      TTE[[paste0(colname.TTE,".x")]] <<- NULL
+                      TTE[[paste0(colname.TTE,".y")]] <<- NULL
                       TTE[[paste0(colname.censorship,".x")]] <<- NULL
                       TTE[[paste0(colname.censorship,".y")]] <<- NULL
                     }
                   # Pull survival curves
-                    output2 <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)
+                    output2 <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)$surv.curve
                     output2$start.stage.index <- start.stage.index
                     output2$end.stage.index <- end.stage.index + 1
                     output2$reference.stage.index <- end.stage.index
@@ -780,8 +954,8 @@ longitudinalcascade <- function(events.long,stages.order,
                   # Get time to event
                     df.surv$time.to.event <- df.surv$end.date-df.surv$start.date
                   # Pull survival curves
-                    #output <- surv.data.stats(df.surv$time.to.event,df.surv$censorship,df.surv$weight)
-                    output <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)
+                    #output <- surv.data.stats(df.surv$time.to.event,df.surv$censorship,df.surv$weight)$surv.curve
+                    output <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)$surv.curve
                   # Return output
                     return(output)
                 }
@@ -828,12 +1002,23 @@ longitudinalcascade <- function(events.long,stages.order,
           surv$group.factor <- ordered(surv$group.index,levels=c(1:(length(groups.order))),
                                                 labels = groups.order[1:(length(groups.order))])
         # Return data
-          return(surv)
+          if (run.type=="main"){
+            quantile.TTE$start.stage.factor <- ordered(quantile.TTE$start.stage.index,levels=c(1:(length(stages.order)-1)),
+                                                      labels = stages.order[1:(length(stages.order)-1)])
+            quantile.TTE$end.stage.factor <- ordered(quantile.TTE$end.stage.index,levels=c(2:(length(stages.order))),
+                                                      labels = stages.order[2:(length(stages.order))])
+            quantile.TTE$group.factor <- ordered(quantile.TTE$group.index,levels=c(1:(length(groups.order))),
+                                                  labels = groups.order[1:(length(groups.order))])
+            return(list("surv" = surv,"quantile.TTE" = quantile.TTE))
+          } else { return(surv)}
       }
     # Generate survival functions for all combinatorials of events
       comb <- expand.grid(stages = 1:(length(stages.order)-1),groups = 1:(length(groups.order)))
     # Run all specified transitions
-      surv.main <- do.call("rbind",mapply(stage.survival.run,start.stage.index = comb$stages,group.index = comb$groups,SIMPLIFY = FALSE))
+      #surv.main <- do.call("rbind",mapply(stage.survival.run,start.stage.index = comb$stages,group.index = comb$groups,SIMPLIFY = FALSE))
+      outputs <- Reduce(rbind.lists, mapply(stage.survival.run,start.stage.index = comb$stages,group.index = comb$groups,SIMPLIFY = FALSE))
+      surv.main <- outputs[[1]]
+      quantile.TTE <- outputs[[2]]
       if (!is.na(death.indicator)){
         comb$run.type <- "death"
         surv.death <- do.call("rbind",mapply(stage.survival.run,start.stage.index = comb$stages,group.index = comb$groups,run.type = comb$run.type,SIMPLIFY = FALSE))
@@ -1073,13 +1258,14 @@ longitudinalcascade <- function(events.long,stages.order,
         ggplot2::scale_x_continuous(expand = c(0, 0),
                           labels=x.scale.function,
                           breaks = c(0,round2(time.horizon/365,0))) +
-        ggplot2::xlab("Time (years) from start of stage") +
+        ggplot2::xlab(x.axis.title) +
         ggplot2::scale_y_continuous(expand = c(0, 0),labels=percent) +
         ggplot2::scale_color_manual(values=c(rep("black",length(legend.fill.colors)))) +
         ggplot2::theme(strip.background = element_blank(),
               strip.placement = "outside") +
         ggplot2::scale_fill_manual(values = legend.fill.colors,limits=levels(legend.states)) +
-        ggplot2::guides(colour = guide_legend(override.aes = list(color="black",alpha = 1,size = 0.5)))
+        ggplot2::guides(colour = guide_legend(override.aes = list(color="black",alpha = 1,size = 0.5))) +
+        ggplot2::guides(fill = guide_legend(nrow = 1))
     # Specify facet grid types
       if (chart.mode=="first transition"){
         chart <- chart +
@@ -1215,7 +1401,7 @@ longitudinalcascade <- function(events.long,stages.order,
   # Prepare export data
   {
     output.df <- list("chart" = chart,"surv.dataset" = surv.main,"surv.dataset.chart" = surv.main.chart,
-                      "events.long" = events.long,"events.wide" = events.wide,"TTE" = TTE)
+                      "events.long" = events.long,"events.wide" = events.wide,"TTE.ind" = TTE,"TTE.quantile" = quantile.TTE)
     if (!is.na(death.indicator)) { output.df <- c(output.df,
                       list("surv.death" = surv.death,"surv.death.chart" = surv.death.chart))
     } else {}
