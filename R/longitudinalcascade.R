@@ -21,8 +21,13 @@
 #' @param time.horizon This option shows the maximum range of each stage in days. Defaults to 365 days (1 year).
 #' @param TTE.quantiles This option sets the quantiles measured for the quantile time to event outputs, using a c() list. By default, this is set to 0.2, 0.5 (i.e. the median), and 0.75.
 #' @param chart.mode By default, the chart is set to a stage-by-stage panel view ("stage panels"). Alternatively, it may be desirable to have only the first panel showing the overall experience from the first entry condition, as indicated by the "first transition" option.
+#' @param ts.indicator (experimental) (optional) This indicates the name of the events indicating the transient stage of interest. Can be either a single indicator, or a c() vector if there are multiple transient stages defined. Defaults to NA, disabling this feature.
+#' @param ts.gap.time (experimental) (optional) This indicates the time between events required until an indidual is considered "off" for the given transient stage. Can be either a single indicator, or a c() vector if there are multiple transient stages defined.
+#' @param ts.start.stage (experimental) (optional) This indicates the stage at which the transient stage of interest starts. Can be either a single indicator, or a c() vector if there are multiple transient stages defined.
+#' @param ts.end.stage (experimental) (optional) This indicates the stage at which the transient stage of interest ends Can be either a single indicator, or a c() vector if there are multiple transient stages defined.
+#' @param ts.color (experimental) (optional) Indicates the color used for transient stages
 #' @param risk.pool.size.line Setting to TRUE adds an indicator of risk pool remaining to the main charts as a line reflected beneath the main chart, showing the proportion of the original risk pool remaining at each time point. Defaults to FALSE.
-#' @param main.fill.colors (optional) This defines the color scheme of the stage transition graphs, as a string indicator for color or a c() list of colors. If the colors contain only one color, the color scheme will automatically generate progressively faded versions of the initial color provided for the remaining stage transitions. Otherwise, a list which is exactly one fewer than the # of stages must be provided, in the order of stage trasitions.
+#' @param main.fill.colors (optional) This defines the color scheme of the stage transition graphs, as a string indicator for color or a c() vector of colors. If the colors contain only one color, the color scheme will automatically generate progressively faded versions of the initial color provided for the remaining stage transitions. Otherwise, a list which is exactly one fewer than the # of stages must be provided, in the order of stage trasitions.
 #' @param death.fill.color (optional) This defines the color scheme for the death stage transition, as a string indicator for color.
 #' @param risk.pool.fill.color (optional) This defines the color scheme for the risk pool graphic, as a string indicator for color.
 #' @param background.prior.event (optional) This changes the background of the faceted chart to be the color for the prior event.
@@ -256,8 +261,8 @@ longitudinalcascade <- function(events.long,stages.order,
                 y <- y[!dups]
             }
             n <- length(y)
-            indx1 <- approx(y+tol, 1:n, p, method="constant", f=1)$y
-            indx2 <- approx(y-tol, 1:n, p, method="constant", f=1)$y
+            indx1 <- stats::approx(y+tol, 1:n, p, method="constant", f=1)$y
+            indx2 <- stats::approx(y-tol, 1:n, p, method="constant", f=1)$y
             quant <- (x[indx1] + x[indx2])/2
             quant[p==0] <- x[1]
             if (!is.na(y[n])) {

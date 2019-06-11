@@ -8,12 +8,15 @@ longitudinalcascade(events.long, stages.order, groups.order = NA,
   groups.date.breaks = NA, groups.date.breaks.labels = NA,
   death.indicator = NA, censorship.indicator = NA,
   censorship.date = "lastdate", allow.sub.stages = FALSE,
-  allow.sub.stage.mortality = FALSE, skip.mode = "none",
-  time.horizon = 365, main.fill.colors = "#4472C4",
-  death.fill.color = "#FF6A6A", chart.mode = "stage panels",
-  nochart = FALSE, risk.pool.size.line = FALSE,
-  risk.pool.fill.color = "#90dbb2", background.prior.event = TRUE,
-  suppress.messages = FALSE)
+  allow.sub.stage.mortality = FALSE,
+  sub.stage.mortality.mode = "standard", skip.mode = "none",
+  time.horizon = 365, TTE.quantiles = c(0.25, 0.5, 0.75),
+  main.fill.colors = "#4472C4", death.fill.color = "#FF6A6A",
+  chart.mode = "stage panels", ts.indicator = NA, ts.gap.time = 90,
+  ts.start.stage = 1, ts.end.stage = NA, ts.color = "#a2f2da",
+  risk.pool.size.line = FALSE, risk.pool.fill.color = "#90dbb2",
+  background.prior.event = TRUE, suppress.messages = FALSE,
+  x.axis.title = "Time (years) from start of stage")
 }
 \arguments{
 \item{events.long}{(required) The main dataframe input parameter. The data frame needs at least the following fields:
@@ -40,25 +43,39 @@ longitudinalcascade(events.long, stages.order, groups.order = NA,
 
 \item{allow.sub.stage.mortality}{Sub-stage-mortality indicate subsequent mortality transitions across the cascade. If TRUE, the main chart will show transitions to all possible subsequent events. For example, if there are 4 stages (1-4), the leftmost chart will show each transition from 1-2, 1-3, and 1-4, while the next chart will show 2-3 and 2-4, and the last chart will show only 3-4. If FALSE, the charts will only show transition to the subsequent stage.}
 
+\item{sub.stage.mortality.mode}{By default, sub-stage mortality is shown as a transition underneath the main transition ("standard"). If set to "shifted" substage mortality will be shifted to the top of the chart, and all substages will be shifted downward accordingly}
+
 \item{skip.mode}{This option shows "skips" across the cascade in each chart, as indicated by the y intercept. If "none" (default) each stage will start only with people who have not moved on to a subsequent stage, i.e. the y intercept will always be 0. If set to "internal" an individual can enter into a stage even if they have "skipped" through it. For example, an individual may go straight from stage 1 to stage 3, skipping 2. If this indicator is FALSE, the stage transition chart from 2-3 will not contain this individual in the denomenator. If TRUE, this individual will be counted in the denomenator for this transition, but will be counted as having transitioned into stage 3 immediately upon entering stage 2. If "external" individuals contribute person-time and are in the y-axis of transitions even prior to their first recorded stage date.}
 
 \item{time.horizon}{This option shows the maximum range of each stage in days. Defaults to 365 days (1 year).}
 
-\item{main.fill.colors}{(optional) This defines the color scheme of the stage transition graphs, as a string indicator for color or a c() list of colors. If the colors contain only one color, the color scheme will automatically generate progressively faded versions of the initial color provided for the remaining stage transitions. Otherwise, a list which is exactly one fewer than the # of stages must be provided, in the order of stage trasitions.}
+\item{TTE.quantiles}{This option sets the quantiles measured for the quantile time to event outputs, using a c() list. By default, this is set to 0.2, 0.5 (i.e. the median), and 0.75.}
+
+\item{main.fill.colors}{(optional) This defines the color scheme of the stage transition graphs, as a string indicator for color or a c() vector of colors. If the colors contain only one color, the color scheme will automatically generate progressively faded versions of the initial color provided for the remaining stage transitions. Otherwise, a list which is exactly one fewer than the # of stages must be provided, in the order of stage trasitions.}
 
 \item{death.fill.color}{(optional) This defines the color scheme for the death stage transition, as a string indicator for color.}
 
 \item{chart.mode}{By default, the chart is set to a stage-by-stage panel view ("stage panels"). Alternatively, it may be desirable to have only the first panel showing the overall experience from the first entry condition, as indicated by the "first transition" option.}
 
-\item{nochart}{Setting this to TRUE prevents the function from generating the main chart to save run time.}
+\item{ts.indicator}{(experimental) (optional) This indicates the name of the events indicating the transient stage of interest. Can be either a single indicator, or a c() vector if there are multiple transient stages defined. Defaults to NA, disabling this feature.}
+
+\item{ts.gap.time}{(experimental) (optional) This indicates the time between events required until an indidual is considered "off" for the given transient stage. Can be either a single indicator, or a c() vector if there are multiple transient stages defined.}
+
+\item{ts.start.stage}{(experimental) (optional) This indicates the stage at which the transient stage of interest starts. Can be either a single indicator, or a c() vector if there are multiple transient stages defined.}
+
+\item{ts.end.stage}{(experimental) (optional) This indicates the stage at which the transient stage of interest ends Can be either a single indicator, or a c() vector if there are multiple transient stages defined.}
+
+\item{ts.color}{(experimental) (optional) Indicates the color used for transient stages}
 
 \item{risk.pool.size.line}{Setting to TRUE adds an indicator of risk pool remaining to the main charts as a line reflected beneath the main chart, showing the proportion of the original risk pool remaining at each time point. Defaults to FALSE.}
 
 \item{risk.pool.fill.color}{(optional) This defines the color scheme for the risk pool graphic, as a string indicator for color.}
 
-\item{background.prior.event}{(optional) This changes the background of the facetted chart to be the color for the prior event.}
+\item{background.prior.event}{(optional) This changes the background of the faceted chart to be the color for the prior event.}
 
-\item{suppress.messages}{(Option) Suppresses tips and messages about the dataset}
+\item{suppress.messages}{(optional) Suppresses tips and messages about the dataset}
+
+\item{x.axis.title}{(optional) Changes the x axis label}
 }
 \description{
 This package generates a longitudinal casade, including a graphical representation. This takes a long-formatted list of stage-by-stage events and transforms it into a longitudinal cascade, correcting the orders of events.
