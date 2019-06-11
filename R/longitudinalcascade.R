@@ -26,8 +26,8 @@
 #' @param death.fill.color (optional) This defines the color scheme for the death stage transition, as a string indicator for color.
 #' @param risk.pool.fill.color (optional) This defines the color scheme for the risk pool graphic, as a string indicator for color.
 #' @param background.prior.event (optional) This changes the background of the faceted chart to be the color for the prior event.
-#' @param suppress.messages (Option) Suppresses tips and messages about the dataset
-#' @param x.axis.title (Option) Changes the x axis label
+#' @param suppress.messages (optional) Suppresses tips and messages about the dataset
+#' @param x.axis.title (optional) Changes the x axis label
 #' @import survival ggplot2 dplyr tidyr zoo scales grDevices
 #' @importFrom stats relevel
 #' @importFrom rlang .data
