@@ -649,19 +649,9 @@ longitudinalcascade <- function(events.long,stages.order,
                   colname.censorship <- paste0("censorship.stage.",start.stage.index,".to.",end.stage.index)
                   df.surv[[colname.TTE]] <- df.surv$time.to.event
                   df.surv[[colname.censorship]] <- df.surv$censorship
-                  TTE <- df.surv[c("ID",colname.TTE,colname.censorship)]
-                  TTE.temp <- df.surv[c("ID",colname.TTE,colname.censorship)]
-                  TTE <<- merge(TTE,TTE.temp,by="ID",all.x=TRUE,all.y=FALSE)
-                  if (length(TTE[[paste0(colname.TTE,".x")]])!=0){
-                    TTE[[colname.TTE]] <<- ifelse(is.na(TTE[[paste0(colname.TTE,".x")]]),
-                                                  TTE[[paste0(colname.TTE,".y")]],TTE[[paste0(colname.TTE,".x")]])
-                    TTE[[colname.censorship]] <<- ifelse(is.na(TTE[[paste0(colname.censorship,".x")]]),
-                                                  TTE[[paste0(colname.censorship,".y")]],TTE[[paste0(colname.censorship,".x")]])
-                    TTE[[paste0(colname.TTE,".x")]] <<- NULL
-                    TTE[[paste0(colname.TTE,".y")]] <<- NULL
-                    TTE[[paste0(colname.censorship,".x")]] <<- NULL
-                    TTE[[paste0(colname.censorship,".y")]] <<- NULL
-                  }
+                  TTE <- df.surv[c("ID","time.to.event","censorship")]
+                  TTE$transition.name <- colname.TTE
+                  TTE$censorship.name <- colname.censorship
                 # Pull survival curves
                   surv.data <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)
                 # Generate quantile TTEs
@@ -678,7 +668,7 @@ longitudinalcascade <- function(events.long,stages.order,
                   surv.curve$end.stage.index <- end.stage.index
                   surv.curve$group.index <- group.index
                 # Return output
-                  return(list("surv.curve" = surv.curve,"quantile.TTE" = quantile.TTE))
+                  return(list("surv.curve" = surv.curve,"TTE.ind" = TTE,"quantile.TTE" = quantile.TTE))
               }
             # Determine which stages to run
               if (allow.sub.stages==TRUE) {
@@ -692,7 +682,9 @@ longitudinalcascade <- function(events.long,stages.order,
               outputs <- Reduce(rbind.lists, lapply(end.stage.index.list,function(x)
                 surv.stats.main.stages(events.wide[events.wide$eligible==1,],start.stage.index,x,group.index)))
               surv <- outputs[[1]]
-              quantile.TTE <- outputs[[2]]
+              TTE.ind <- outputs[[2]]
+              quantile.TTE <- outputs[[3]]
+
           } else {}
           # Death stage transitions
           if (run.type=="death") {
@@ -733,18 +725,9 @@ longitudinalcascade <- function(events.long,stages.order,
                 colname.censorship <- paste0("censorship.stage.",start.stage.index,".to.death.",end.stage.index-1,".to.",end.stage.index)
                 df.surv[[colname.TTE]] <- df.surv$time.to.event
                 df.surv[[colname.censorship]] <- df.surv$censorship
-                TTE.temp <- df.surv[c("ID",colname.TTE,colname.censorship)]
-                TTE <<- merge(TTE,TTE.temp,by="ID",all.x=TRUE,all.y=FALSE)
-                if (length(TTE[[paste0(colname.TTE,".x")]])!=0){
-                  TTE[[colname.TTE]] <<- ifelse(is.na(TTE[[paste0(colname.TTE,".x")]]),
-                                                TTE[[paste0(colname.TTE,".y")]],TTE[[paste0(colname.TTE,".x")]])
-                  TTE[[colname.censorship]] <<- ifelse(is.na(TTE[[paste0(colname.censorship,".x")]]),
-                                                TTE[[paste0(colname.censorship,".y")]],TTE[[paste0(colname.censorship,".x")]])
-                  TTE[[paste0(colname.TTE,".x")]] <<- NULL
-                  TTE[[paste0(colname.TTE,".y")]] <<- NULL
-                  TTE[[paste0(colname.censorship,".x")]] <<- NULL
-                  TTE[[paste0(colname.censorship,".y")]] <<- NULL
-                }
+                TTE <- df.surv[c("ID","time.to.event","censorship")]
+                TTE$transition.name <- colname.TTE
+                TTE$censorship.name <- colname.censorship
               # Pull survival curves
                 output <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)$surv.curve
                 output$start.stage.index <- start.stage.index
@@ -786,18 +769,9 @@ longitudinalcascade <- function(events.long,stages.order,
                     colname.censorship <- paste0("censorship.stage.",start.stage.index,".to.death.",end.stage.index,".to.",end.stage.index+1)
                     df.surv[[colname.TTE]] <- df.surv$time.to.event
                     df.surv[[colname.censorship]] <- df.surv$censorship
-                    TTE.temp <- df.surv[c("ID",colname.TTE,colname.censorship)]
-                    TTE <<- merge(TTE,TTE.temp,by="ID",all.x=TRUE,all.y=FALSE)
-                    if (length(TTE[[paste0(colname.TTE,".x")]])!=0){
-                      TTE[[colname.TTE]] <<- ifelse(is.na(TTE[[paste0(colname.TTE,".x")]]),
-                                                    TTE[[paste0(colname.TTE,".y")]],TTE[[paste0(colname.TTE,".x")]])
-                      TTE[[colname.censorship]] <<- ifelse(is.na(TTE[[paste0(colname.censorship,".x")]]),
-                                                    TTE[[paste0(colname.censorship,".y")]],TTE[[paste0(colname.censorship,".x")]])
-                      TTE[[paste0(colname.TTE,".x")]] <<- NULL
-                      TTE[[paste0(colname.TTE,".y")]] <<- NULL
-                      TTE[[paste0(colname.censorship,".x")]] <<- NULL
-                      TTE[[paste0(colname.censorship,".y")]] <<- NULL
-                    }
+                    TTE <- df.surv[c("ID","time.to.event","censorship")]
+                    TTE$transition.name <- colname.TTE
+                    TTE$censorship.name <- colname.censorship
                   # Pull survival curves
                     output2 <- surv.data.stats(df.surv$time.to.event,df.surv$censorship)$surv.curve
                     output2$start.stage.index <- start.stage.index
@@ -808,7 +782,7 @@ longitudinalcascade <- function(events.long,stages.order,
                     output <- rbind(output,output2)
                 }
               # Return output
-                return(output)
+                return(list("surv.curve" = output, "TTE.ind" = TTE))
             }
             # Determine which stages to run
               if (allow.sub.stage.mortality==TRUE) {
@@ -817,8 +791,10 @@ longitudinalcascade <- function(events.long,stages.order,
                 end.stage.index.list <- (start.stage.index+1):(start.stage.index+1)
               }
             # Run mortality stages
-              surv <- do.call("rbind",lapply(end.stage.index.list,function(x)
+              outputs <- Reduce(rbind.lists, lapply(end.stage.index.list,function(x)
                 surv.stats.mortality(events.wide[events.wide$eligible==1,],start.stage.index,x,group.index)))
+              surv <- outputs[[1]]
+              TTE.ind <- outputs[[2]]
             } else {}
           # Transient status transitions
           if (run.type=="transient") {
@@ -837,7 +813,7 @@ longitudinalcascade <- function(events.long,stages.order,
                   df.ts <- rbind(df.ts,df.ts.date.stage)
                   rm(df.ts.date.stage)
                   df.ts <- df.ts %>%
-                    dplyr::arrange(ID,date)
+                    dplyr::arrange(.data$ID,date)
                 # Merge in relevant data from events.wide
                   cols.to.keep <- c("ID",paste0("date.stage.",start.stage.index),"date.censorship")
                   if (!is.na(end.stage.index)){
@@ -884,8 +860,8 @@ longitudinalcascade <- function(events.long,stages.order,
               {
                 # Determine if there is a gap of ts.gap.time days or more
                   df.ts <- df.ts %>%
-                    dplyr::arrange(ID, date) %>%
-                    dplyr::group_by(ID) %>%
+                    dplyr::arrange(.data$ID, date) %>%
+                    dplyr::group_by(.data$ID) %>%
                     dplyr::mutate(gap = dplyr::lead(date) - date>ts.gap.time)
                 # Create an "off" event when there is a gap
                   df.ts$date.off <- NA
@@ -893,7 +869,7 @@ longitudinalcascade <- function(events.long,stages.order,
                   df.ts$gap <- NULL
                 # Replace dates backward
                   # Find the number of times needed to run
-                    df.ts <- df.ts %>% dplyr::group_by(ID) %>% dplyr::mutate(count = row_number())
+                    df.ts <- df.ts %>% dplyr::group_by(.data$ID) %>% dplyr::mutate(count = row_number())
                     n.run <- max(df.ts$count)
                     df.ts$count <- NULL
                   # Give an end date if it's the last one
@@ -913,8 +889,8 @@ longitudinalcascade <- function(events.long,stages.order,
               # Generate repeat #s and weights
                 # Create count repeat #s
                   df.ts <- df.ts %>%
-                    dplyr::arrange(ID,date)%>%
-                    dplyr::group_by(ID) %>% dplyr::mutate(count = row_number())
+                    dplyr::arrange(.data$ID,date)%>%
+                    dplyr::group_by(.data$ID) %>% dplyr::mutate(count = row_number())
                   max.count <- max(df.ts$count)
               # Merge back into the wide dataset under appropriate labels
               {
@@ -1014,24 +990,52 @@ longitudinalcascade <- function(events.long,stages.order,
                                                       labels = stages.order[2:(length(stages.order))])
             quantile.TTE$group.factor <- ordered(quantile.TTE$group.index,levels=c(1:(length(groups.order))),
                                                   labels = groups.order[1:(length(groups.order))])
-            return(list("surv" = surv,"quantile.TTE" = quantile.TTE))
+            return(list("surv" = surv,"TTE.ind" = TTE.ind,"quantile.TTE" = quantile.TTE))
+          } else if (run.type=="death"){
+            return(list("surv" = surv,"TTE.ind" = TTE.ind))
           } else { return(surv)}
       }
     # Generate survival functions for all combinatorials of events
       comb <- expand.grid(stages = 1:(length(stages.order)-1),groups = 1:(length(groups.order)))
-    # Run all specified transitions
+    # Run all specified transitions to generate main datasets
       #surv.main <- do.call("rbind",mapply(stage.survival.run,start.stage.index = comb$stages,group.index = comb$groups,SIMPLIFY = FALSE))
       outputs <- Reduce(rbind.lists, mapply(stage.survival.run,start.stage.index = comb$stages,group.index = comb$groups,SIMPLIFY = FALSE))
       surv.main <- outputs[[1]]
-      quantile.TTE <- outputs[[2]]
+      TTE.ind <- outputs[[2]]
+      quantile.TTE <- outputs[[3]]
       if (!is.na(death.indicator)){
         comb$run.type <- "death"
-        surv.death <- do.call("rbind",mapply(stage.survival.run,start.stage.index = comb$stages,group.index = comb$groups,run.type = comb$run.type,SIMPLIFY = FALSE))
+        outputs <- Reduce(rbind.lists, mapply(stage.survival.run,start.stage.index = comb$stages,group.index = comb$groups,run.type = comb$run.type,SIMPLIFY = FALSE))
+        surv.death <- outputs[[1]]
+        TTE.ind.death <- outputs[[2]]
       } else {}
       if (!anyNA(ts.indicator)){
         comb$run.type <- "transient"
         surv.transient <- do.call("rbind",mapply(stage.survival.run,start.stage.index = comb$stages,group.index = comb$groups,run.type = comb$run.type,SIMPLIFY = FALSE))
       } else {}
+    # Modify TTE outputs to be in wide form
+      # Main events
+        TTE.times <- TTE.ind[c("ID","time.to.event","transition.name")] %>%
+        tidyr::spread(.data$transition.name,c(.data$time.to.event))
+        TTE.censorship <- TTE.ind[c("ID","censorship","censorship.name")] %>%
+        tidyr::spread(.data$censorship.name,c(.data$censorship))
+        TTE.ind <- merge(TTE.times,TTE.censorship,by="ID",all.x=TRUE)
+        TTE.ind <- merge(TTE.ind,events.wide[c("ID","group")],by="ID")
+        if (!anyNA(groups.date.breaks)){
+          TTE.ind <- merge(TTE.ind,events.wide[c("ID",paste0("date.stage.",1:(length(stages.order)-1),".group"))])
+        }
+      # Death events
+      if (!is.na(death.indicator)){
+        TTE.times <- TTE.ind.death[c("ID","time.to.event","transition.name")] %>%
+        tidyr::spread(.data$transition.name,c(.data$time.to.event))
+        TTE.censorship <- TTE.ind.death[c("ID","censorship","censorship.name")] %>%
+        tidyr::spread(.data$censorship.name,c(.data$censorship))
+        TTE.ind.death <- merge(TTE.times,TTE.censorship,by="ID",all.x=TRUE)
+        TTE.ind.death <- merge(TTE.ind.death,events.wide[c("ID","group")],by="ID")
+        if (!anyNA(groups.date.breaks)){
+          TTE.ind <- merge(TTE.ind,events.wide[c("ID",paste0("date.stage.",1:(length(stages.order)-1),".group"))])
+        }
+      }
   }
   # Generate chart graphics
   {
@@ -1326,14 +1330,14 @@ longitudinalcascade <- function(events.long,stages.order,
           # Generate internal data
             if (!anyNA(groups.date.breaks)){
               generate.date.break.data <- function(stage.index,group.index){
-                df.output <- TTE[TTE[[paste0("date.stage.",stage.index,".group")]]==groups.order[group.index],]
+                df.output <- TTE.ind[TTE.ind[[paste0("date.stage.",stage.index,".group")]]==groups.order[group.index],]
                 df.output$group <- groups.order[group.index]
                 return(df.output)
               }
               TTE.test <- do.call("rbind",
                                    lapply(1:length(groups.order),function(x) generate.date.break.data(init.stage,x)))
             } else {
-              TTE.test <- TTE
+              TTE.test <- TTE.ind
             }
           # Perform test
             chart.time <- as.integer(TTE.test[[paste("time.stage.",(init.stage),".to.",(init.stage+1),sep="")]])
@@ -1359,14 +1363,14 @@ longitudinalcascade <- function(events.long,stages.order,
             if (anyNA(groups.date.breaks)==FALSE){
               #TTE.test <- TTE[0,]
               generate.date.break.data <- function(stage.index,group.index){
-                df.output <- TTE[TTE[[paste0("date.stage.",stage.index,".group")]]==groups.order[group.index],]
+                df.output <- TTE.ind[TTE.ind[[paste0("date.stage.",stage.index,".group")]]==groups.order[group.index],]
                 df.output$group <- groups.order[group.index]
                 return(df.output)
               }
               TTE.test <- do.call("rbind",
                                    lapply(1:length(groups.order),function(x) generate.date.break.data(init.stage,x)))
             } else {
-              TTE.test <- TTE
+              TTE.test <- TTE.ind
             }
           # Keep only relevent variables for internal manipulation
             time.var <- paste("time.stage.",(init.stage),".to.",(init.stage+1),sep="")
@@ -1406,9 +1410,9 @@ longitudinalcascade <- function(events.long,stages.order,
   # Prepare export data
   {
     output.df <- list("chart" = chart,"surv.dataset" = surv.main,"surv.dataset.chart" = surv.main.chart,
-                      "events.long" = events.long,"events.wide" = events.wide,"TTE.ind" = TTE,"TTE.quantile" = quantile.TTE)
+                      "events.long" = events.long,"events.wide" = events.wide,"TTE.ind" = TTE.ind,"TTE.quantile" = quantile.TTE)
     if (!is.na(death.indicator)) { output.df <- c(output.df,
-                      list("surv.death" = surv.death,"surv.death.chart" = surv.death.chart))
+                      list("surv.death" = surv.death,"surv.death.chart" = surv.death.chart,"TTE.ind.death" = TTE.ind.death))
     } else {}
     if (!anyNA(ts.indicator)) { output.df <- c(output.df,
                       list("surv.transient" = surv.transient,"surv.transient.chart" = surv.transient.chart))
