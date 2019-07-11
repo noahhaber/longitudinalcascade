@@ -401,7 +401,7 @@ longitudinalcascade <- function(events.long,stages.order,
   {
     # Background prior events
       if ((background.prior.event == TRUE) & length(stages.order) == 2 ){
-        warning.f("No background color manipulation if only two stages.",call. = FALSE)
+        warning.f("No background color manipulation if only two stages.")
         background.prior.event=FALSE
       } else {}
     # Sub-mortality required mortality to be specified
