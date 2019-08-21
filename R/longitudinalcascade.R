@@ -401,7 +401,7 @@ longitudinalcascade <- function(events.long,stages.order,
   {
     # Background prior events
       if ((background.prior.event == TRUE) & length(stages.order) == 2 ){
-        warning.f("No background color manipulation if only two stages.")
+        #warning.f("No background color manipulation if only two stages.")
         background.prior.event=FALSE
       } else {}
     # Sub-mortality required mortality to be specified
@@ -627,12 +627,12 @@ longitudinalcascade <- function(events.long,stages.order,
                   df.surv[df.surv$endpoint==1,]$end.date <- df.surv[df.surv$endpoint==1,][[paste0("date.stage.",end.stage.index)]]
                   df.surv[df.surv$endpoint==1,]$censorship <- rep(0,sum(df.surv$endpoint==1))
                 # Option 2: If endpoint is never reached, check if death occurs
-                  if (!is.na(death.indicator)){
-                    df.surv$endpoint <- ifelse(df.surv$endpoint==0 & !is.na(df.surv$date.death),
-                                                                            2,df.surv$endpoint)
-                  }
-                  df.surv[df.surv$endpoint==2,]$end.date <- df.surv[df.surv$endpoint==2,]$start.date + time.horizon
-                  df.surv[df.surv$endpoint==2,]$censorship <- rep(1,sum(df.surv$endpoint==2))
+                  # if (!is.na(death.indicator)){
+                  #   df.surv$endpoint <- ifelse(df.surv$endpoint==0 & !is.na(df.surv$date.death),
+                  #                                                           2,df.surv$endpoint)
+                  # }
+                  # df.surv[df.surv$endpoint==2,]$end.date <- df.surv[df.surv$endpoint==2,]$start.date + time.horizon
+                  # df.surv[df.surv$endpoint==2,]$censorship <- rep(1,sum(df.surv$endpoint==2))
                 # Option 3: Otherwise, use the censorship date
                   df.surv$endpoint <- ifelse(df.surv$endpoint==0,3,df.surv$endpoint)
                   df.surv[df.surv$endpoint==3,]$end.date <- df.surv[df.surv$endpoint==3,]$date.censorship
@@ -1425,7 +1425,6 @@ longitudinalcascade <- function(events.long,stages.order,
       output.df <- c(output.df,
                       list("surv.substage.death.chart" = surv.substage.death.chart))
     }
-
 
     return(output.df)
   }
