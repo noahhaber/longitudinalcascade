@@ -1,6 +1,6 @@
 Package: longitudinalcascade
 Title: Longitudinal Cascade
-Version: 0.3.1.1
+Version: 0.3.2.1
 Authors@R: 
     person(given = "Noah",
            family = "Haber",
