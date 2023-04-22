@@ -4,19 +4,35 @@
 \alias{longitudinalcascade}
 \title{Longitudinal cascade statistics and charts}
 \usage{
-longitudinalcascade(events.long, stages.order, groups.order = NA,
-  groups.date.breaks = NA, groups.date.breaks.labels = NA,
-  death.indicator = NA, censorship.indicator = NA,
-  censorship.date = "lastdate", allow.sub.stages = FALSE,
+longitudinalcascade(
+  events.long,
+  stages.order,
+  groups.order = NA,
+  groups.date.breaks = NA,
+  groups.date.breaks.labels = NA,
+  death.indicator = NA,
+  censorship.indicator = NA,
+  censorship.date = "lastdate",
+  allow.sub.stages = FALSE,
   allow.sub.stage.mortality = FALSE,
-  sub.stage.mortality.mode = "standard", skip.mode = "none",
-  time.horizon = 365, TTE.quantiles = c(0.25, 0.5, 0.75),
-  main.fill.colors = "#4472C4", death.fill.color = "#FF6A6A",
-  chart.mode = "stage panels", ts.indicator = NA, ts.gap.time = 90,
-  ts.start.stage = 1, ts.end.stage = NA, ts.color = "#a2f2da",
-  risk.pool.size.line = FALSE, risk.pool.fill.color = "#90dbb2",
-  background.prior.event = TRUE, suppress.messages = FALSE,
-  x.axis.title = "Time (years) from start of stage")
+  sub.stage.mortality.mode = "standard",
+  skip.mode = "none",
+  time.horizon = 365,
+  TTE.quantiles = c(0.25, 0.5, 0.75),
+  main.fill.colors = "#4472C4",
+  death.fill.color = "#FF6A6A",
+  chart.mode = "stage panels",
+  ts.indicator = NA,
+  ts.gap.time = 90,
+  ts.start.stage = 1,
+  ts.end.stage = NA,
+  ts.color = "#a2f2da",
+  risk.pool.size.line = FALSE,
+  risk.pool.fill.color = "#90dbb2",
+  background.prior.event = TRUE,
+  suppress.messages = FALSE,
+  x.axis.title = "Time (years) from start of stage"
+)
 }
 \arguments{
 \item{events.long}{(required) The main dataframe input parameter. The data frame needs at least the following fields:

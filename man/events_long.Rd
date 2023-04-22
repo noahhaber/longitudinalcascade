@@ -11,8 +11,10 @@ functions and functionality.
   \item date. Date of stage event occuring, formatted as date
   \item stage. Stage reached at date, formatted as chr
 }}
-\format{Formatted as a long-shaped dataset with 28,091 observations
-with 4 variables: ID, Group, Date, Stage}
+\format{
+Formatted as a long-shaped dataset with 28,091 observations
+with 4 variables: ID, Group, Date, Stage
+}
 \usage{
 data(events_long)
 }
