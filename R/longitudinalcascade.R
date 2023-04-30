@@ -1,4 +1,4 @@
-#' This package generates a longitudinal casade, including a graphical representation. This takes a long-formatted list of stage-by-stage events and transforms it into a longitudinal cascade, correcting the orders of events.
+#' This package generates a longitudinal cascade, including a graphical representation. This takes a long-formatted list of stage-by-stage events and transforms it into a longitudinal cascade, correcting the orders of events.
 #' @title Longitudinal cascade statistics and charts
 #' @name longitudinalcascade
 #' @keywords cascade longitudinal survival
@@ -33,6 +33,7 @@
 #' @param background.prior.event (optional) This changes the background of the faceted chart to be the color for the prior event.
 #' @param suppress.messages (optional) Suppresses tips and messages about the dataset
 #' @param x.axis.title (optional) Changes the x axis label
+#' @return description All data are output to an object containing a the main chart ($chart), a survival-formatted dataset ($surv.dataset), the data underlying the main chart ($surv.dataset.chart), the underlying original dataset in long ($events.long) and wide ($events.wide), individual time to event data ($TTE.ind), TTE data by quantiles ($quantile.TTE), the equivalent functions for deat and transient events, and group difference tests
 #' @import survival ggplot2 dplyr tidyr zoo scales grDevices
 #' @importFrom stats relevel
 #' @importFrom rlang .data
@@ -40,7 +41,7 @@
 #' @importFrom stats na.omit
 #' @export
 #' @references Haber et al. (2017) Lancet HIV 4(5):e223-e230
-#' (\href{https://www.ncbi.nlm.nih.gov/pubmed/28153470}{PubMed})
+#' (\href{https://pubmed.ncbi.nlm.nih.gov/28153470/}{PubMed})
 #' @examples
 #' # Pull in data from example simulated dataset
 #' library(longitudinalcascade)
@@ -164,7 +165,7 @@ longitudinalcascade <- function(events.long,stages.order,
             surv.data[1,]$surv.p.UB <- 0
             surv.data[1,]$surv.p.LB <- 0
           } else if (surv.data$surv.time[1]<0){
-            print("Error, negative time disallowed")
+            message("Error, negative time disallowed")
           } else {}
         # Generate percentile TTE (i.e. median, etc)
           TTE.quantile <- quantile.survfit(surv, TTE.quantiles,conf.int=TRUE)
@@ -408,7 +409,6 @@ longitudinalcascade <- function(events.long,stages.order,
       if ((allow.sub.stage.mortality==TRUE) & is.na(death.indicator)){
         stop("Sub-stage mortality requires specifying an indicator for death.")
       } else {}
-    # Check each stage
   }
   # Generate main wide dataset
   {

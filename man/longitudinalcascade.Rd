@@ -129,7 +129,7 @@ df.events.wide <- longitudinalcascade.sim$events.wide
 }
 \references{
 Haber et al. (2017) Lancet HIV 4(5):e223-e230
-(\href{https://www.ncbi.nlm.nih.gov/pubmed/28153470}{PubMed})
+(\href{https://pubmed.ncbi.nlm.nih.gov/28153470/}{PubMed})
 }
 \keyword{cascade}
 \keyword{longitudinal}

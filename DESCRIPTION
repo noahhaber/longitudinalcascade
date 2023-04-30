@@ -1,12 +1,12 @@
 Package: longitudinalcascade
 Title: Longitudinal Cascade
-Version: 0.3.2.2
+Version: 0.3.2.6
 Authors@R: 
     person(given = "Noah",
            family = "Haber",
            role = c("aut", "cre"),
            email = "noahhaber@gmail.com")
-Description: Creates a series of set of graphics and statistics related to the longitudinal cascade, all included in a single object. The longitudinal cascade inputs longitudinal data to identify gaps in the HIV and related cascades by observing differences using time to event and survival methods. The stage definitions are set by the user, with default standard options. Outputs include graphics, datasets, and formal statistical tests.
+Description: Creates a series of sets of graphics and statistics related to the longitudinal cascade, all included in a single object. The longitudinal cascade inputs longitudinal data to identify gaps in the HIV and related cascades by observing differences using time to event and survival methods. The stage definitions are set by the user, with default standard options. Outputs include graphics, datasets, and formal statistical tests.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true

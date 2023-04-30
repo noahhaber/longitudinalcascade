@@ -3,28 +3,21 @@
 \docType{data}
 \name{events_long}
 \alias{events_long}
-\title{A dataset generated from a simulation to allow users to test
-functions and functionality.
-\itemize{
-  \item ID. Individual ID numbers, formated as num
-  \item group. Group identifiers for individuals, formatted as chr
-  \item date. Date of stage event occuring, formatted as date
-  \item stage. Stage reached at date, formatted as chr
-}}
+\title{Simulated sample data}
 \format{
-Formatted as a long-shaped dataset with 28,091 observations
-with 4 variables: ID, Group, Date, Stage
+Formatted as a long-shaped dataset with 28,091 observations with 4 variables: ID, Group, Date, Stage
 }
 \usage{
 data(events_long)
 }
 \description{
-A dataset generated from a simulation to allow users to test
-functions and functionality.
+A dataset generated from a simulation to allow users to test functions and functionality.
+}
+\details{
 \itemize{
-  \item ID. Individual ID numbers, formated as num
+  \item ID. Individual ID numbers, formatted as num
   \item group. Group identifiers for individuals, formatted as chr
-  \item date. Date of stage event occuring, formatted as date
+  \item date. Date of stage event occurring, formatted as date
   \item stage. Stage reached at date, formatted as chr
 }
 }
