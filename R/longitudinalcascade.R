@@ -3,10 +3,10 @@
 #' @name longitudinalcascade
 #' @keywords cascade longitudinal survival
 #' @param events.long (required) The main dataframe input parameter. The data frame needs at least the following fields:
-#' "ID": (required) A string-based individual identifier, indicating every person in the dataset.
+#' "ID": (required) A string-based individual identifier, indicating every individual in the dataset.
 #' "date": (required) Date-formatted date on which the event / stage occurred
 #' "stage": (required) String indicating the stage achieved by the individual on the specified date. Stages must match the string in the stages.order parameter. Additonal events may be included in the "stage" category, including death, loss to follow up, and interstage events defined in the other parameters.
-#' "group": (optional) String indicating any relevent groups of data.
+#' "group": (optional) String indicating any relevant groups of data.
 #' @param stages.order (required) stages.order is the parameter which defines the events to be considered in the main cascade and their order. This is a vector of strings matching items in the "Stage" column of the main data frame, e.g. c("Stage 1","Stage 2","Stage 3").
 #' @param groups.order (optional) This is a vector of groups, matching the "group" column of the main data frame. If left blank, no group comparisons will be performed. For the chart, each group will have its own row.
 #' @param groups.date.breaks (optional) If groups.date.breaks is filled in, the grouping will be defined by date range of entry event for each transition, rather than groups of individuals. Each transition will independently determine its own groups, based on the time in which the entrance event occurs. Times are determined by a vector of date breaks. Each group is defined as starting from a given date break value and continuing until it reaches the subsequent date break, not including data from that ending break value. For example, setting the break values to be January 1, 2011, January 1, 2012, and January 1, 2013 will create two groups. The first group will take individuals who entered each stage from January 1, 2011 to Dec 31, 2011, and the second will take individuals who entered into the stage from January 1, 2012 to Dec 31, 2012.
@@ -33,6 +33,8 @@
 #' @param background.prior.event (optional) This changes the background of the faceted chart to be the color for the prior event.
 #' @param suppress.messages (optional) Suppresses tips and messages about the dataset
 #' @param x.axis.title (optional) Changes the x axis label
+#' @param direct.label (optional) Adds direct labeling of the survival lines via the geom_textpath command
+#' @param legend.position (optional) Changes legend position (passing on to ggplot theme)
 #' @return description All data are output to an object containing a the main chart ($chart), a survival-formatted dataset ($surv.dataset), the data underlying the main chart ($surv.dataset.chart), the underlying original dataset in long ($events.long) and wide ($events.wide), individual time to event data ($TTE.ind), TTE data by quantiles ($quantile.TTE), the equivalent functions for deat and transient events, and group difference tests
 #' @import survival ggplot2 dplyr tidyr zoo scales grDevices
 #' @importFrom stats relevel
@@ -87,7 +89,9 @@ longitudinalcascade <- function(events.long,stages.order,
                          risk.pool.fill.color = "#90dbb2",
                          background.prior.event=TRUE,
                          suppress.messages = FALSE,
-                         x.axis.title = "Time (years) from start of stage") {
+                         x.axis.title = "Time (years) from start of stage",
+                         direct.label = TRUE,
+                         legend.position = "bottom") {
 
   # Functions for general use
   {
@@ -492,7 +496,7 @@ longitudinalcascade <- function(events.long,stages.order,
               events.wide[[paste("stage.",stage.index,".origin.index",sep="")]] == stage.index,
               events.wide[[paste("date.stage.",stage.index,sep="")]],events.wide[[paste("date.stage.",stage.index +1,sep="")]]
             )
-            events.wide[[paste("date.stage.",stage.index,sep="")]] <- as.Date.numeric(events.wide[[paste("date.stage.",stage.index,sep="")]])
+            events.wide[[paste("date.stage.",stage.index,sep="")]] <- zoo::as.Date.numeric(events.wide[[paste("date.stage.",stage.index,sep="")]])
         }
         # Cleanup
           events.wide$temp_flag <- NULL
@@ -553,7 +557,7 @@ longitudinalcascade <- function(events.long,stages.order,
         } else {
           stop("Incompatible date for censorship. Use a date format or specify 'lastdate'")
         }
-        events.wide$date.censorship <- as.Date.numeric(events.wide$date.censorship)
+        events.wide$date.censorship <- zoo::as.Date.numeric(events.wide$date.censorship)
       # Assume that if date of death exists and occurs after censorship event, censorship is false and replace with last date recorded
       if (!is.na(censorship.indicator) & (!is.na(death.indicator))){
         # Check to see if any individuals fall into this category, and warn user
@@ -561,7 +565,7 @@ longitudinalcascade <- function(events.long,stages.order,
           warning.f(paste0("At least one censorship event takes place after death date. Changed censorship date(s) to last date recorded for those cases."))
           events.wide$date.censorship <- ifelse((events.wide$date.censorship < events.wide$date.death) & (!is.na(events.wide$date.death)) & (!is.na(events.wide$date.censorship)),
                                       last.date,events.wide$date.censorship)
-          events.wide$date.censorship <- as.Date.numeric(events.wide$date.censorship)
+          events.wide$date.censorship <- zoo::as.Date.numeric(events.wide$date.censorship)
         } else {}
       }
       # Deal with scenarios where censorship event occurs on or before stage event, by assuming censorship is false, and sets it to the last date
@@ -570,7 +574,7 @@ longitudinalcascade <- function(events.long,stages.order,
           if (any((events.wide$date.censorship < events.wide[[paste0("date.stage.",i)]]) & !is.na(events.wide[[paste0("date.stage.",i)]]) & (!is.na(events.wide$date.censorship)))){
             events.wide$date.censorship <- ifelse((events.wide$date.censorship < events.wide[[paste0("date.stage.",i)]]) & !is.na(events.wide[[paste0("date.stage.",i)]]) & (!is.na(events.wide$date.censorship)),
                                     last.date,events.wide$date.censorship)
-            events.wide$date.censorship <- as.Date.numeric(events.wide$date.censorship)
+            events.wide$date.censorship <- zoo::as.Date.numeric(events.wide$date.censorship)
           }
         }
     }
@@ -854,7 +858,7 @@ longitudinalcascade <- function(events.long,stages.order,
                     } else {}
                   # Revise so that death
                   # If nothing else available, end at censorship date
-                    df.ts$date.end <- as.Date.numeric(ifelse(is.na(df.ts$date.end),df.ts$date.censorship,df.ts$date.end))
+                    df.ts$date.end <- zoo::as.Date.numeric(ifelse(is.na(df.ts$date.end),df.ts$date.censorship,df.ts$date.end))
               }
               # Identify gaps and consolidate periods
               {
@@ -865,7 +869,7 @@ longitudinalcascade <- function(events.long,stages.order,
                     dplyr::mutate(gap = dplyr::lead(date) - date>ts.gap.time)
                 # Create an "off" event when there is a gap
                   df.ts$date.off <- NA
-                  df.ts$date.off <- as.Date.numeric(ifelse(df.ts$gap,df.ts$date+ts.gap.time,df.ts$date.off))
+                  df.ts$date.off <- zoo::as.Date.numeric(ifelse(df.ts$gap,df.ts$date+ts.gap.time,df.ts$date.off))
                   df.ts$gap <- NULL
                 # Replace dates backward
                   # Find the number of times needed to run
@@ -873,15 +877,15 @@ longitudinalcascade <- function(events.long,stages.order,
                     n.run <- max(df.ts$count)
                     df.ts$count <- NULL
                   # Give an end date if it's the last one
-                    df.ts$date.off <- as.Date.numeric(ifelse(dplyr::lead(df.ts$ID)!=df.ts$ID | is.na(dplyr::lead(df.ts$ID)),
+                    df.ts$date.off <- zoo::as.Date.numeric(ifelse(dplyr::lead(df.ts$ID)!=df.ts$ID | is.na(dplyr::lead(df.ts$ID)),
                                              df.ts$date.end,df.ts$date.off))
                     if (!is.na(death.indicator)){
-                      df.ts$date.off <- as.Date.numeric(ifelse((dplyr::lead(df.ts$ID)!=df.ts$ID | is.na(dplyr::lead(df.ts$ID))) & df.ts$date.death < df.ts$date.off  & !is.na(df.ts$date.death),
+                      df.ts$date.off <- zoo::as.Date.numeric(ifelse((dplyr::lead(df.ts$ID)!=df.ts$ID | is.na(dplyr::lead(df.ts$ID))) & df.ts$date.death < df.ts$date.off  & !is.na(df.ts$date.death),
                                                df.ts$date.death,df.ts$date.off))
                     } else {}
                   # Trace backward until beginning of period
                     for (i in 1:n.run){
-                      df.ts$date <- as.Date.numeric(ifelse(!is.na(df.ts$date.off) & !is.na(dplyr::lag(df.ts$ID)) & dplyr::lag(df.ts$ID)==df.ts$ID & is.na(dplyr::lag(df.ts$date.off)),
+                      df.ts$date <- zoo::as.Date.numeric(ifelse(!is.na(df.ts$date.off) & !is.na(dplyr::lag(df.ts$ID)) & dplyr::lag(df.ts$ID)==df.ts$ID & is.na(dplyr::lag(df.ts$date.off)),
                                            dplyr::lag(df.ts$date),df.ts$date))
                       df.ts <- df.ts[!(dplyr::lead(df.ts$ID)==df.ts$ID & dplyr::lead(df.ts$date)==df.ts$date & !is.na(dplyr::lead(df.ts$date.off))),]
                     }
@@ -1256,7 +1260,7 @@ longitudinalcascade <- function(events.long,stages.order,
           panel.grid = element_blank(),
           plot.margin = unit(c(.1,.1,.1,.1), "cm"),
           axis.title.y=element_blank(),
-          legend.position="bottom",
+          legend.position=legend.position,
           legend.title=element_blank(),
           legend.spacing.x = unit(0.1, 'cm'),
           axis.text = element_text(colour="black",size=10),
@@ -1268,13 +1272,22 @@ longitudinalcascade <- function(events.long,stages.order,
                           labels=x.scale.function,
                           breaks = c(0,round2(time.horizon/365,0))) +
         ggplot2::xlab(x.axis.title) +
-        ggplot2::scale_y_continuous(expand = c(0, 0),labels=percent) +
+        ggplot2::scale_y_continuous(expand = c(0, 0),labels=scales::percent) +
         ggplot2::scale_color_manual(values=c(rep("black",length(legend.fill.colors)))) +
         ggplot2::theme(strip.background = element_blank(),
               strip.placement = "outside") +
         ggplot2::scale_fill_manual(values = legend.fill.colors,limits=levels(legend.states)) +
         ggplot2::guides(colour = guide_legend(override.aes = list(color="black",alpha = 1,size = 0.5))) +
         ggplot2::guides(fill = guide_legend(nrow = 1))
+
+      # Add direct labeling
+      if (direct.label==TRUE){
+        chart <- chart +
+          geomtextpath::geom_textline(data=surv.main.chart,aes(x=.data$surv.time,y=.data$surv.p,group=.data$end.stage.factor.legend,label=.data$end.stage.factor.legend),
+                                      color=NA,textcolour="black",text_smoothing = 30,vjust = 1.3,
+                                      size=3.5)
+      }
+
     # Specify facet grid types
       if (chart.mode=="first transition"){
         chart <- chart +
